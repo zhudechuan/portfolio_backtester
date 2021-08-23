@@ -517,6 +517,14 @@ class backtest_model:
         return
 
     def get_ceq(self, x=1):
+        '''
+        ceq of the strategy backtest results with the given risk aversion factor
+        :param x: risk aversion factor
+        :type x: float or int
+
+        :return: float
+
+        '''
         self.__ceq = np.mean(self.__net_excess_returns) - x / 2 * np.cov(self.__net_excess_returns, ddof=1)
         return self.__ceq
 
