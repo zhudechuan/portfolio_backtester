@@ -15,7 +15,7 @@ setup(
     name='portfolio_backtester',
     version='0.1.0',
     packages=['tests', 'portfolio_backtester'],
-    keywords=['portfolio','backtest'],
+    keywords=['portfolio', 'backtest'],
     url='',
     license='MIT',
     author='zhudechuan',
@@ -24,14 +24,14 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     classifiers=[
-            'Programming Language :: Python',
-            'Programming Language :: Python :: 3',
-            'Programming Language :: Python :: 3.6',
-            "Programming Language :: Python :: 3.7",
-            "Programming Language :: Python :: 3.8",
-            "Programming Language :: Python :: 3.9",
-            "Operating System :: OS Independent"
-        ],
-    package_data={"portfolio_backtester":["data/*.txt","data/*.csv"]},
-    install_requires=["numpy","pandas","scipy", "scikit-learn"]
+        'Programming Language :: Python',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.6',
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Operating System :: OS Independent"
+    ],
+    package_data={"portfolio_backtester": ["data/*.txt", "data/*.csv"]},
+    install_requires=["numpy", "pandas", "scipy", "scikit-learn"]
 )

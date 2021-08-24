@@ -751,9 +751,7 @@ Bayes_Stein_shrink = backtest_model(__Bayes_Stein, ['ex_return'], name='Bayes_St
 
 
 # A little function that fetch the data included in the library package
-import pkg_resources
-import importlib.resources
-from os import path
+from importlib import resources
 def fetch_data(file_name):
     '''
     Fetch the specific data file from the library
@@ -763,26 +761,25 @@ def fetch_data(file_name):
     as the index
     :param file_name: name of the data file you want to get from the library, please include suffix
     :type file_name: str
+
+    :return: specific data files, whose index to be corrected
     '''
     if not isinstance(file_name, str):
         raise Exception('Wrong type of "file_name" given. Must be a string. ')
 
-    # Here=path.abspath(path.dirname(__file__))
-    # print(Here)
-    # print(__name__)
-    # stream = pkg_resources.resource_string(__name__, 'data/SPSectors.txt')
-    path=importlib.resources.path("portfolio_backtester.data","SPSectors.txt")
 
-    # try:
-    #     stream = pkg_resources.resource_stream(__name__, f'data/{file_name}')
-    # except:
-    #     raise Exception(
-    #         'File name not found! Please check your input of "file_name", make sure the correct suffix is on!')
-    return pd.read_csv(path)
+    try:
+        with resources.path("portfolio_backtester.data", file_name) as path:
+            if file_name[-4:]=='.txt':
+                return pd.read_csv(path, delimiter='\t')
+            else:
+                return pd.read_csv(path)
+    except FileNotFoundError:
+        raise FileNotFoundError('Check your file name!')
 
 
 if __name__ == '__main__':
-    fetch_data('aaa')
+    #data=fetch_data('SPSectors.txt')
     # data = pd.read_csv('data/SPSectors.txt', delimiter='\t', index_col='%date')
     # data.index = data.index.astype('str')
     # data.index = pd.to_datetime(data.index)
