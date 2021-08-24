@@ -752,6 +752,7 @@ Bayes_Stein_shrink = backtest_model(__Bayes_Stein, ['ex_return'], name='Bayes_St
 
 # A little function that fetch the data included in the library package
 import pkg_resources
+import importlib.resources
 from os import path
 def fetch_data(file_name):
     '''
@@ -766,17 +767,18 @@ def fetch_data(file_name):
     if not isinstance(file_name, str):
         raise Exception('Wrong type of "file_name" given. Must be a string. ')
 
-    Here=path.abspath(path.dirname(__file__))
-    print(Here)
-    print(__name__)
-    stream = pkg_resources.resource_string(__name__, 'data/SPSectors.txt')
+    # Here=path.abspath(path.dirname(__file__))
+    # print(Here)
+    # print(__name__)
+    # stream = pkg_resources.resource_string(__name__, 'data/SPSectors.txt')
+    path=importlib.resources.path("portfolio_backtester.data","SPSectors.txt")
 
     # try:
     #     stream = pkg_resources.resource_stream(__name__, f'data/{file_name}')
     # except:
     #     raise Exception(
     #         'File name not found! Please check your input of "file_name", make sure the correct suffix is on!')
-    return pd.read_csv(stream)
+    return pd.read_csv(path)
 
 
 if __name__ == '__main__':
