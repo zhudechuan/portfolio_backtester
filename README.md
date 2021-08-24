@@ -45,7 +45,7 @@ Use the package manager [pip](https://pip.pypa.io/en/stable/) to install portfol
 pip install portfolio_backtester
 ```
 
-## Usage
+## Get started
 ### 1. Preparation
 
 Before calling the library, user should decide whether he/she wants to use built-in portfolio construction strategies, or 
@@ -132,25 +132,102 @@ strategy_model.get_ceq(x=1) # x is the risk aversion factor
 ## Examples
 1. **Naive `1/N` strategy**
 
-The following shows a simple example with naive `1/N` portfolio construction strategy:
+A simple example with naive `1/N` portfolio construction strategy, no *extra data* needed, do not require
+*trace back* of historical portfolios:
 ```python
+# 1. Preparation
+# prepare the data
+import numpy as np
+import pandas as pd
+data = pd.read_csv('data/SPSectors.txt', delimiter='\t', index_col='%date')
+data.index = data.index.astype('str')
+data.index = pd.to_datetime(data.index)
+
+# prepare the portfolio construction function
 def __naive_alloc(list_df):
     df = list_df[0]
     n = df.shape[1]
     res = np.ones(n) / n
     return res
-```
 
-
- 
-Continuing the above example with naive `1/N` portfolio construction strategy:
-```python
+# 2. Initialization
 from portfolio_backtester import backtest_model
 
-# build the model with the strategy function
 naive_alloc = backtest_model(__naive_alloc, ['ex_return'], name='naive allocation portfolio')
+
+# 3. Test
+naive_alloc.backtest(data.iloc[:,1:],'M',window=120,rfr=data.iloc[:,0],
+                     data_type='ex_return',frequency_strategy='M')
+
+# Note that `naive_alloc` is actually one of the built-in portfolio construction models in the library
+# so the user can skip step 1 & 2 by calling in the model from the library directly and go straight to step 3
+# The user still needs to prepare the data!
+from portfolio_backtester import naive_alloc
+
+naive_alloc.backtest(data.iloc[:,1:],'M',window=120,rfr=data.iloc[:,0],
+                     data_type='ex_return',frequency_strategy='M')
+```
+Here are a few showcases of results the user can get:
+```doctest
+>>> naive_alloc.general_performance()
+strategy name                              naive allocation portfolio
+Price impact                                                      OFF
+Start                                             1991-02-28 00:00:00
+End                                               2002-12-31 00:00:00
+Duration                                           4324 days 00:00:00
+Final Portfolio Return (%)                                  322.5701%
+Peak Portfolio Return (%)                                   424.5902%
+Bottom Portfolio Return (%)                                   7.3055%
+Historical Volatiltiy (%)                                     4.1633%
+Sharpe Ratio                                                   0.1799
+Sortino Ratio                                                  0.2701
+Calmar Ratio                                                   0.0094
+Max. Drawdown (%)                                            79.5449%
+Max. Drawdown Duration                             3745 days 00:00:00
+% of positive-net-excess-return periods                      62.9371%
+% of positive-net-return periods                             64.3357%
+Average turnover (%)                                          3.0853%
+Total turnover (%)                                          444.2821%
+95% VaR on net-excess returns                                -5.5679%
+95% VaR on net returns                                       -5.1337%
+dtype: object
+
+>>> naive_alloc.get_net_returns()
+%date
+1991-02-28    0.073055
+1991-03-28    0.030464
+1991-04-30   -0.001455
+1991-05-31    0.041645
+1991-06-28   -0.044282
+                ...   
+2002-08-30    0.023282
+2002-09-30   -0.112382
+2002-10-31    0.080945
+2002-11-29    0.080691
+2002-12-31   -0.031318
+Length: 143, dtype: float64
+
+>>> naive_alloc.get_ceq(1)
+0.006603752164323863
+
+>>> naive_alloc.get_ceq(np.array([1,2,3]))
+array([0.00660375, 0.00574349, 0.00488322])
 ```
 
+2. **Fama-French 3-factor strategy**
+
+This is a more advanced and sophisticated portfolio construction strategy. It requires factor data as *extra
+data*, but does not need to *trace back* historical portfolios.
+
+```python
+# 1. Preperation
+# prepare the data
+import numpy as np
+import pandas as pd
+
+
+
+```
 ## Roadmap
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.

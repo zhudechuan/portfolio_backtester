@@ -7,7 +7,6 @@ from sklearn.linear_model import LinearRegression
 import scipy.cluster.hierarchy as sch
 
 
-
 class backtest_model:
     """
     Given a user-defined portfolio construction strategy (a function that takes in stock-related data and returns portfolio weights) and
@@ -19,6 +18,9 @@ class backtest_model:
 
     def __init__(self, strategy, involved_data_type, need_extra_data=False, trace_back=False, name='Unnamed'):
         """
+        Initiate the model with the strategy function, and clarify involved data types needed, whose sequence MUST be consistent
+        with that of the list of dataframes used inside strategy function
+
         :param strategy: user-defined function that serves as portfolio construction strategy
         :type strategy: function
 
@@ -35,7 +37,7 @@ class backtest_model:
         :type name: str
         """
         self.__strategy = strategy
-        
+
         if type(involved_data_type) != list:
             raise Exception('"involved_data_type" must be given in a list')
         else:
@@ -56,7 +58,7 @@ class backtest_model:
         else:
             self.__name = name
 
-        self.__price_impact=False
+        self.__price_impact = False
         self.__sharpe = None
         self.__ceq = None
         self.__average_turnover = None
@@ -333,6 +335,9 @@ class backtest_model:
                  price_impact=False, tc_a=0, tc_b=0, tc_f=0, c=1, initial_wealth=1E6,
                  extra_data=pd.DataFrame(), price_impact_model='default'):
         """
+        Start the backtesting process with the built model. The function itself will not return anything. To get the results,
+        please call respective functions.
+
         :param data: historical data that the strategy to be tested on. Index must be datetime format compatible
         :type data: pd.DataFrame
 
@@ -467,7 +472,7 @@ class backtest_model:
                 raise Exception('data_type must be "price" when using fixed transaction cost (tc_f!=0)')
 
         # divide into price_impact model and no_price_impact model
-        self.__price_impact=price_impact
+        self.__price_impact = price_impact
         if price_impact == False:
             self.__test_no_price_impact(data, frequency_data, data_type, rfr, interval, window, frequency_strategy,
                                         tc_a, tc_b, tc_f, initial_wealth, extra_data)
@@ -502,36 +507,51 @@ class backtest_model:
         return
 
     def get_net_excess_returns(self):
+        '''
+        Get the net excess returns (net of risk-free rate) and respective dates of the model tested.
+        '''
         return self.__net_excess_returns
 
     def get_net_returns(self):
+        '''
+        Get the net returns and respective dates of the model tested
+        '''
         return self.__net_returns
 
     def get_sharpe(self):
+        '''
+        Get the sharpe ratio of the model tested
+        '''
         # self.__sharpe = np.mean(self.__net_excess_returns) / np.std(self.__net_excess_returns, ddof=1)
         return self.__sharpe
 
     def get_turnover(self):
-        print(f"average turnover is: {self.__average_turnover:.5f}")
-        print(f"total turnover is: {self.__total_turnover:.5f}")
+        '''
+        Get the average turnover rate of each period as well as total turnover rate over all periods of the model tested
+        '''
+        print(f"average turnover is: {self.__average_turnover:.5%}")
+        print(f"total turnover is: {self.__total_turnover:.5%}")
         return
 
     def get_ceq(self, x=1):
         '''
-        ceq of the strategy backtest results with the given risk aversion factor
+        Get certainty equivalent returns (ceq) of the model tested with the given risk aversion factor
         :param x: risk aversion factor
-        :type x: float or int
+        :type x: float or int or pd.Series or np.ndarray
 
-        :return: float
+        :return: certainty equivalent returns
 
         '''
         self.__ceq = np.mean(self.__net_excess_returns) - x / 2 * np.cov(self.__net_excess_returns, ddof=1)
         return self.__ceq
 
     def general_performance(self):
+        '''
+        Get a set of performance evaluation metrics of the model tested
+        '''
         output = {}
         output['strategy name'] = self.__name
-        output['Price impact']='ON' if self.__price_impact else 'OFF'
+        output['Price impact'] = 'ON' if self.__price_impact else 'OFF'
         output['Start'] = self.__net_returns.index[0]
         output['End'] = self.__net_returns.index[-1]
         output['Duration'] = output['End'] - output['Start']
@@ -729,18 +749,47 @@ def __Bayes_Stein(list_df):  # ex_return
 
 Bayes_Stein_shrink = backtest_model(__Bayes_Stein, ['ex_return'], name='Bayes_Stein_shrinkage portfolio')
 
+
+# A little function that fetch the data included in the library package
+import pkg_resources
+from os import path
+def fetch_data(file_name):
+    '''
+    Fetch the specific data file from the library
+    Please make sure the correct suffix is on
+    Please inspect these data files before testing to check the arguments and whether they suit the needs
+    Note: you will probably need to modify the resulting dataframe a little by setting the column with datetime info
+    as the index
+    :param file_name: name of the data file you want to get from the library, please include suffix
+    :type file_name: str
+    '''
+    if not isinstance(file_name, str):
+        raise Exception('Wrong type of "file_name" given. Must be a string. ')
+
+    Here=path.abspath(path.dirname(__file__))
+    print(Here)
+    print(__name__)
+    stream = pkg_resources.resource_string(__name__, 'data/SPSectors.txt')
+
+    # try:
+    #     stream = pkg_resources.resource_stream(__name__, f'data/{file_name}')
+    # except:
+    #     raise Exception(
+    #         'File name not found! Please check your input of "file_name", make sure the correct suffix is on!')
+    return pd.read_csv(stream)
+
+
 if __name__ == '__main__':
-    # data = pd.read_csv('../../data/SPSectors.txt', delimiter='\t', index_col='%date')
+    fetch_data('aaa')
+    # data = pd.read_csv('data/SPSectors.txt', delimiter='\t', index_col='%date')
     # data.index = data.index.astype('str')
     # data.index = pd.to_datetime(data.index)
-    # test1=backtest_model(naive_alloc,['ex_return'])
-    # test1.backtest(data.iloc[:,1:],'M',window=120,rfr=data.iloc[:,0],data_type='ex_return',frequency_strategy='M')
+    # naive_alloc.backtest(data.iloc[:,1:],'M',window=120,rfr=data.iloc[:,0],data_type='ex_return',frequency_strategy='M')
 
-
-    data = pd.read_csv('../../data/sp_500_prices_v2.csv', index_col='Date', parse_dates=['Date'])
-    data = data.iloc[:, :12]
-    volume = pd.read_csv('../../data/sp_500_volumes_v2.csv', index_col='Date', parse_dates=['Date'])
-    volume = volume.loc[:, data.columns]
+    # data = pd.read_csv('../../data/sp_500_prices_v2.csv', index_col='Date', parse_dates=['Date'])
+    # data = data.iloc[:, :12]
+    # volume = pd.read_csv('../../data/sp_500_volumes_v2.csv', index_col='Date', parse_dates=['Date'])
+    # volume = volume.loc[:, data.columns]
     #
     # naive_alloc.backtest(data, 'D', volume, window=120, rfr=pd.Series([0.01] * data.shape[0], index=data.index),
     #                     data_type='price', frequency_strategy='D',
