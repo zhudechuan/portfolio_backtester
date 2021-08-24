@@ -750,7 +750,7 @@ def __Bayes_Stein(list_df):  # ex_return
 Bayes_Stein_shrink = backtest_model(__Bayes_Stein, ['ex_return'], name='Bayes_Stein_shrinkage portfolio')
 
 
-# A little function that fetch the data included in the library package
+# A small function that fetch the data included in the library package
 from importlib import resources
 def fetch_data(file_name):
     '''
@@ -767,7 +767,6 @@ def fetch_data(file_name):
     if not isinstance(file_name, str):
         raise Exception('Wrong type of "file_name" given. Must be a string. ')
 
-
     try:
         with resources.path("portfolio_backtester.data", file_name) as path:
             if file_name[-4:]=='.txt':
@@ -779,7 +778,7 @@ def fetch_data(file_name):
 
 
 if __name__ == '__main__':
-    #data=fetch_data('SPSectors.txt')
+    # data=fetch_data('SPSectors.txt')
     # data = pd.read_csv('data/SPSectors.txt', delimiter='\t', index_col='%date')
     # data.index = data.index.astype('str')
     # data.index = pd.to_datetime(data.index)

@@ -46,6 +46,7 @@ pip install portfolio_backtester
 ```
 
 ## Get started
+
 ### 1. Preparation
 
 Before calling the library, user should decide whether he/she wants to use built-in portfolio construction strategies, or 
@@ -71,7 +72,8 @@ return a portfolio weight allocation, denoted by `w` here, that **sums up to 1**
 Other than the strategy function, the user also needs to prepare the data for the strategy to
 be tested on, as well as the extra data for specific strategies to function, if applicable. 
 
->Note 1: The library provides several built-in datasets for users' reference.
+>Note 1: The library provides several built-in datasets for users' reference. Please use `fetch_data`
+> function to gain access to these data
 > 
 >Note 2: If the strategy requires extra data to function, make sure that the index of extra data matches that 
 > of the data for the strategy to be tested on.
@@ -95,7 +97,7 @@ As mentioned above, the sequence in `involved_data_type` should match that of th
 `strategy_name`. For example, if `list_df=[price_data, return_data, ex_return_data]` in `strategy_name` from 
 preparation, then `involved_data_type=['price','return','ex_return']` in `backtest_model` from initialization.
 
->Note: The library has some built-in ready-to-be-tested models for users' reference.
+>Note: The library has some built-in ready-to-be-tested models for users' reference. 
 
 Now it is all set up! The model object is ready to be tested on selected data.
 
@@ -139,7 +141,9 @@ A simple example with naive `1/N` portfolio construction strategy, no *extra dat
 # prepare the data
 import numpy as np
 import pandas as pd
-data = pd.read_csv('data/SPSectors.txt', delimiter='\t', index_col='%date')
+from portfolio_backtester import fetch_data
+data = fetch_data('SPSectors.txt')              # We are using built-in datasets in the library
+data.set_index('%date')
 data.index = data.index.astype('str')
 data.index = pd.to_datetime(data.index)
 
@@ -156,6 +160,7 @@ from portfolio_backtester import backtest_model
 naive_alloc = backtest_model(__naive_alloc, ['ex_return'], name='naive allocation portfolio')
 
 # 3. Test
+# Most basic version of testing, no change of frequency, price impact not included, no transaction cost, etc.
 naive_alloc.backtest(data.iloc[:,1:],'M',window=120,rfr=data.iloc[:,0],
                      data_type='ex_return',frequency_strategy='M')
 
