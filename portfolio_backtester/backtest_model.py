@@ -779,9 +779,9 @@ def fetch_data(file_name):
 
 if __name__ == '__main__':
     # data=fetch_data('SPSectors.txt')
-    # data = pd.read_csv('data/SPSectors.txt', delimiter='\t', index_col='%date')
-    # data.index = data.index.astype('str')
-    # data.index = pd.to_datetime(data.index)
+    data = pd.read_csv('data/SPSectors.txt', delimiter='\t', index_col='%date')
+    data.index = data.index.astype('str')
+    data.index = pd.to_datetime(data.index)
     # naive_alloc.backtest(data.iloc[:,1:],'M',window=120,rfr=data.iloc[:,0],data_type='ex_return',frequency_strategy='M')
 
     # data = pd.read_csv('../../data/sp_500_prices_v2.csv', index_col='Date', parse_dates=['Date'])
@@ -811,16 +811,18 @@ if __name__ == '__main__':
     #                     price_impact=False,
     #                     tc_a=0.1, tc_b=0.2, tc_f=1)
 
-    # extra_data = pd.read_csv('../../data/FF3-monthly-192607-202106.csv', index_col='Date')
-    # start = '1981-01'
-    # end = '2003-01'
-    # extra_data = extra_data.loc[start:end]
-    # extra_data.index = data.index
-    # extra_data = extra_data.astype('float64')
-    #
-    # FF_3_factor_model.backtest(data.iloc[:, 1:], 'M', window=120, rfr=data.iloc[:, 0],
-    #                            data_type='ex_return', frequency_strategy='M',
-    #                            price_impact=False, tc_a=0.01 / 100, tc_b=0.01 / 200, extra_data=extra_data.iloc[:, :-1])
+    #extra_data = pd.read_csv('../../data/FF3-monthly-192607-202106.csv', index_col='Date')
+    extra_data=fetch_data('FF3-monthly-192607-202106.csv')
+    extra_data.set_index('Date',inplace=True)
+    start = '1981-01'
+    end = '2003-01'
+    extra_data = extra_data.loc[start:end]
+    extra_data.index = data.index
+    extra_data = extra_data.astype('float64')
+
+    FF_3_factor_model.backtest(data.iloc[:, 1:], 'M', window=120, rfr=data.iloc[:, 0],
+                               data_type='ex_return', frequency_strategy='M',
+                               price_impact=False, tc_a=0.01 / 100, tc_b=0.01 / 200, extra_data=extra_data.iloc[:, :-1])
 
     # hrp_alloc.backtest(data.iloc[:,1:],'M',window=120,rfr=data.iloc[:,0],data_type='ex_return',frequency_strategy='M')
 

@@ -143,7 +143,7 @@ import numpy as np
 import pandas as pd
 from portfolio_backtester import fetch_data
 data = fetch_data('SPSectors.txt')              # We are using built-in datasets in the library
-data.set_index('%date')
+data.set_index('%date',inplace=True)
 data.index = data.index.astype('str')
 data.index = pd.to_datetime(data.index)
 
@@ -159,16 +159,13 @@ from portfolio_backtester import backtest_model
 
 naive_alloc = backtest_model(__naive_alloc, ['ex_return'], name='naive allocation portfolio')
 
-# 3. Test
-# Most basic version of testing, no change of frequency, price impact not included, no transaction cost, etc.
-naive_alloc.backtest(data.iloc[:,1:],'M',window=120,rfr=data.iloc[:,0],
-                     data_type='ex_return',frequency_strategy='M')
-
-# Note that `naive_alloc` is actually one of the built-in portfolio construction models in the library
+# Note: `naive_alloc` is actually one of the built-in portfolio construction models in the library
 # so the user can skip step 1 & 2 by calling in the model from the library directly and go straight to step 3
 # The user still needs to prepare the data!
 from portfolio_backtester import naive_alloc
 
+# 3. Test
+# Most basic version of testing, no change of frequency, price impact not included, no transaction cost, etc.
 naive_alloc.backtest(data.iloc[:,1:],'M',window=120,rfr=data.iloc[:,0],
                      data_type='ex_return',frequency_strategy='M')
 ```
@@ -221,7 +218,7 @@ array([0.00660375, 0.00574349, 0.00488322])
 
 2. **Fama-French 3-factor strategy**
 
-This is a more advanced and sophisticated portfolio construction strategy. It requires factor data as *extra
+This is a more advanced and sophisticated portfolio construction strategy. It requires *factor data* as *extra
 data*, but does not need to *trace back* historical portfolios.
 
 ```python
@@ -229,11 +226,106 @@ data*, but does not need to *trace back* historical portfolios.
 # prepare the data
 import numpy as np
 import pandas as pd
+from portfolio_backtester import fetch_data
+data=fetch_data('SPSectors.txt')
+data.set_index('%date',inplace=True)
+data.index = data.index.astype('str')
+data.index = pd.to_datetime(data.index)
 
+extra_data=fetch_data('FF3-monthly-192607-202106.csv')     # extra factor data that is also included in the library
+extra_data.set_index('Date',inplace=True)
+start = '1981-01'
+end = '2003-01'
+extra_data = extra_data.loc[start:end]
+extra_data.index = data.index
+extra_data = extra_data.astype('float64')
 
+# prepare the portfolio construction function
+from sklearn.linear_model import LinearRegression
+def __FF3(list_df, extra_data):
+    df = list_df[0]
 
+    X = extra_data
+    y = df
+    reg = LinearRegression(fit_intercept=True).fit(X, y)
+    beta = reg.coef_
+    var_epi = (y - reg.predict(X)).var(axis=0)
+    cov = np.dot(np.dot(beta, X.cov()), beta.T) + np.diag(var_epi)
+
+    in_cov = np.linalg.inv(cov)
+    n = df.shape[1]
+    w = np.dot(in_cov, np.ones(n))
+    w /= w.sum()
+    return w
+
+# 2. Initialization
+from portfolio_backtester import backtest_model
+
+FF_3_factor_model = backtest_model(__FF3, ['ex_return'], need_extra_data=True,
+                                   name='Fama-French 3-factor model portfolio')
+
+# Note: this model is also one of the built-in models in the library, user can call it directly
+# Again, user still needs to prepare the data
+from portfolio_backtester import FF_3_factor_model
+
+# 3. Test
+# Add transaction cost into the backtest
+FF_3_factor_model.backtest(data.iloc[:, 1:], 'M', window=120, rfr=data.iloc[:, 0],
+                           data_type='ex_return', frequency_strategy='M',
+                           price_impact=False, tc_a=0.01 / 100, tc_b=0.01 / 200, 
+                           extra_data=extra_data.iloc[:, :-1])
+```
+And some results are shown below:
+```doctest
+>>> FF_3_factor_model.general_performance()
+strategy name                              Fama-French 3-factor model portfolio
+Price impact                                                                OFF
+Start                                                       1991-02-28 00:00:00
+End                                                         2002-12-31 00:00:00
+Duration                                                     4324 days 00:00:00
+Final Portfolio Return (%)                                            159.1316%
+Peak Portfolio Return (%)                                             254.4271%
+Bottom Portfolio Return (%)                                             5.9731%
+Historical Volatiltiy (%)                                               3.5768%
+Sharpe Ratio                                                             0.1065
+Sortino Ratio                                                            0.1608
+Calmar Ratio                                                             0.0054
+Max. Drawdown (%)                                                      70.1002%
+Max. Drawdown Duration                                       3501 days 00:00:00
+% of positive-net-excess-return periods                                58.0420%
+% of positive-net-return periods                                       59.4406%
+Average turnover (%)                                                   13.3530%
+Total turnover (%)                                                   1922.8387%
+95% VaR on net-excess returns                                          -5.7882%
+95% VaR on net returns                                                 -5.3991%
+dtype: object
+
+>>> FF_3_factor_model.get_net_excess_returns()
+%date
+1991-02-28    0.054931
+1991-03-28    0.018295
+1991-04-30   -0.020621
+1991-05-31    0.010298
+1991-06-28   -0.022145
+                ...   
+2002-08-30    0.025228
+2002-09-30   -0.092177
+2002-10-31    0.032344
+2002-11-29    0.025310
+2002-12-31   -0.003465
+Length: 143, dtype: float64
 ```
 ## Roadmap
+
+- Add in more price-impact model options
+- Clean up all datafiles such that users don't need to modify them (e.g. make 'Date' column consistent, data type consistent,
+etc.)
+- Add in documents for the description of each data file
+- Possible visualization modules for non-savvy programmers
+- More performance metrics 
+- More built-in portfolio construction models
+- Finish the backtest_model_tests.py1
+- ?
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
 
