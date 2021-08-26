@@ -232,7 +232,7 @@ data.set_index('%date',inplace=True)
 data.index = data.index.astype('str')
 data.index = pd.to_datetime(data.index)
 
-extra_data=fetch_data('FF3-monthly-192607-202106.csv')     # extra factor data that is also included in the library
+extra_data=fetch_data('FF3_monthly_192607-202106.csv')     # extra factor data that is also included in the library
 extra_data.set_index('Date',inplace=True)
 start = '1981-01'
 end = '2003-01'
@@ -327,7 +327,6 @@ In the future:
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
 
-Please make sure to update tests as appropriate.
 
 ## License
 [MIT](https://choosealicense.com/licenses/mit/)

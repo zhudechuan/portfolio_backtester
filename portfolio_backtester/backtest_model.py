@@ -58,6 +58,7 @@ class backtest_model:
         else:
             self.__name = name
 
+        self.__last_test_frequency = None
         self.__price_impact = False
         self.__sharpe = None
         self.__ceq = None
@@ -186,6 +187,12 @@ class backtest_model:
 
         # apply rolling windows with __rebalance
         portfolios = self.__rebalance(excess_return_df, normal_return_df, price_df, window, extra_data)
+
+        try:
+            assert sum(portfolios[0])<=1+0.000001
+        except:
+            raise Exception('Please make sure your strategy builds a portfolios whose sum of weights does not exceed 1!')
+
         portfolios = pd.DataFrame(portfolios)
         excess_return_df = excess_return_df.iloc[window:]
         normal_return_df = normal_return_df.iloc[window:]
@@ -261,6 +268,13 @@ class backtest_model:
 
         # apply rolling windows with __rebalance
         portfolios = self.__rebalance(excess_return_df, normal_return_df, price_df, window, extra_data)
+
+        try:
+            assert sum(portfolios[0]) <= 1 + 0.000001
+        except:
+            raise Exception(
+                'Please make sure your strategy builds a portfolios whose sum of weights does not exceed 1!')
+
         portfolios = pd.DataFrame(portfolios)
         excess_return_df = excess_return_df.iloc[window:]
         normal_return_df = normal_return_df.iloc[window:]
@@ -473,7 +487,9 @@ class backtest_model:
 
         # divide into price_impact model and no_price_impact model
         self.__price_impact = price_impact
+        frequency_map = {'D': 'Day', 'W': 'Week', 'M': 'Month'}
         if price_impact == False:
+            self.__last_test_frequency=f'{interval} {frequency_map[frequency_strategy]}'
             self.__test_no_price_impact(data, frequency_data, data_type, rfr, interval, window, frequency_strategy,
                                         tc_a, tc_b, tc_f, initial_wealth, extra_data)
         else:
@@ -501,6 +517,7 @@ class backtest_model:
                     'Must provide correct volume of each asset for price-impact model. For specific requirements '
                     'please refer to the description of the function')
             else:
+                self.__last_test_frequency=f'{interval} {frequency_map[frequency_strategy]}'
                 self.__test_price_impact(data, frequency_data, data_type, rfr, interval, window, frequency_strategy,
                                          tc_a, tc_b, tc_f, volume, c, initial_wealth, extra_data, price_impact_model)
 
@@ -554,12 +571,14 @@ class backtest_model:
         output['Price impact'] = 'ON' if self.__price_impact else 'OFF'
         output['Start'] = self.__net_returns.index[0]
         output['End'] = self.__net_returns.index[-1]
-        output['Duration'] = output['End'] - output['Start']
+
+        output['Frequency (length of each period)']=self.__last_test_frequency
+        output['Duration'] = f'{self.__net_returns.shape[0]} periods'
 
         evolution = np.cumprod(1 + self.__net_returns)
-        output['Final Portfolio Return (%)'] = f"{evolution[-1] - 1:.4%}"
-        output['Peak Portfolio Return (%)'] = f"{evolution.max() - 1:.4%}"
-        output['Bottom Portfolio Return (%)'] = f"{evolution.min() - 1:.4%}"
+        output['Final Portfolio Return (%)'] = f"{evolution[-1]:.4%}"
+        output['Peak Portfolio Return (%)'] = f"{evolution.max():.4%}"
+        output['Bottom Portfolio Return (%)'] = f"{evolution.min():.4%}"
 
         output['Historical Volatiltiy (%)'] = f"{np.std(self.__net_returns, ddof=1):.4%}"
         output['Sharpe Ratio'] = f"{self.__sharpe:.4f}"
@@ -779,11 +798,11 @@ def fetch_data(file_name):
 
 
 if __name__ == '__main__':
-    # data=fetch_data('SPSectors.csv')
+    data=fetch_data('SPSectors.csv')
     # data = pd.read_csv('data/SPSectors.csv',index_col='Date')
     # data.index = data.index.astype('str')
     # data.index = pd.to_datetime(data.index)
-    # naive_alloc.backtest(data.iloc[:,1:],'M',window=120,rfr=data.iloc[:,0],data_type='ex_return',frequency_strategy='M')
+    naive_alloc.backtest(data.iloc[:,1:],'M',window=120,rfr=data.iloc[:,0],data_type='ex_return',frequency_strategy='M')
 
     # data = pd.read_csv('../../data/sp_500_prices_v2.csv', index_col='Date', parse_dates=['Date'])
     # data = data.iloc[:, :12]
