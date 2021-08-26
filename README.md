@@ -142,7 +142,7 @@ A simple example with naive `1/N` portfolio construction strategy, no *extra dat
 import numpy as np
 import pandas as pd
 from portfolio_backtester import fetch_data
-data = fetch_data('SPSectors.txt')              # We are using built-in datasets in the library
+data = fetch_data('SPSectors.csv')              # We are using built-in datasets in the library
 data.set_index('%date',inplace=True)
 data.index = data.index.astype('str')
 data.index = pd.to_datetime(data.index)
@@ -227,7 +227,7 @@ data*, but does not need to *trace back* historical portfolios.
 import numpy as np
 import pandas as pd
 from portfolio_backtester import fetch_data
-data=fetch_data('SPSectors.txt')
+data=fetch_data('SPSectors.csv')
 data.set_index('%date',inplace=True)
 data.index = data.index.astype('str')
 data.index = pd.to_datetime(data.index)
