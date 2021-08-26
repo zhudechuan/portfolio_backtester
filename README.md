@@ -317,14 +317,12 @@ Length: 143, dtype: float64
 ```
 ## Roadmap
 
-- Add in more price-impact model options
-- Clean up all datafiles such that users don't need to modify them (e.g. make 'Date' column consistent, data type consistent,
-etc.)
 - Add in documents for the description of each data file
-- Possible visualization modules for non-savvy programmers
+
+In the future:
 - More performance metrics 
 - More built-in portfolio construction models
-- Finish the backtest_model_tests.py
+- Add in more price-impact model options
 
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
