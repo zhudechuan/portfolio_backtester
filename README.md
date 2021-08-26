@@ -324,8 +324,8 @@ etc.)
 - Possible visualization modules for non-savvy programmers
 - More performance metrics 
 - More built-in portfolio construction models
-- Finish the backtest_model_tests.py1
-- ?
+- Finish the backtest_model_tests.py
+
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
 
