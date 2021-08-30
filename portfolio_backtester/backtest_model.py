@@ -361,7 +361,7 @@ class backtest_model:
         :param volume: trading volume of each asset during each period (array of size T*N), or average trading volume for each asset over all periods (N-d array)
         :type volume: pd.DataFrame or list or np.ndarray or pd.Series
 
-        :param data_type: choose from {'price','return','ex_return'} where 'price' stands for price data of assets in each period, 'return' stands for normal percentage return of each asset in each period, 'ex_return' stands for percentage return net of risk-free rate
+        :param data_type: choose from {'price','return','ex_return'} where 'price' stands for price data of assets at each timestamp, 'return' stands for normal percentage return of each asset in each period, 'ex_return' stands for percentage return net of risk-free rate
         :type data_type: str
 
         :param rfr: data for risk-free rate in each period. Note: if 'rfr' is passed in as a dataframe or series, the index of 'rfr' must match that of 'data'
@@ -468,7 +468,7 @@ class backtest_model:
                 raise IndexError('Index of extra_data and index of data do not match!')
 
         if (data_type == 'return' or data_type == 'ex_return') and ('price' in self.__involved_data_type):
-            raise Exception('price data type is involved in your strategy, please provide data with type price')
+            raise Exception('price data type is involved in your strategy, please provide data with type "price"')
 
         if isinstance(rfr, pd.Series) or isinstance(rfr, pd.DataFrame):
             if rfr.empty and ('ex_return' in self.__involved_data_type):

@@ -63,8 +63,7 @@ or need to refer to past portfolios to construct a new portfolio for the current
 return a portfolio weight allocation, denoted by `w` here, that **sums up to 1**, in the form of `np.ndarray` or 
 `pd.Series` or `pd.DataFrame`.
 
->Note 1: The function must only use ***ONE*** period of data and return ***ONE*** weight allocation for that
-> period.
+>Note 1: The function must only return ***ONE*** weight allocation for that period.
 > 
 >Note 2: The sequence of assets in the return of the function should be consistent with the sequence of assets
 > in the data on which the strategy is to be tested throughout the whole process. 
