@@ -355,7 +355,7 @@ class backtest_model:
         :param data: historical data that the strategy to be tested on. Index must be datetime format compatible
         :type data: pd.DataFrame
 
-        :param frequency_data: The frequency of the data provided, choose between {'D','W','M'}. 'data' must be taken in the smallest unit of respective frequency, e.g. the frequency 'M' means the data is taken at each month
+        :param frequency_data: The frequency of the data provided, choose between {'D','W','M'}, where 'D' for day,'W' for week and 'M' for month. 'data' must be taken in the smallest unit of respective frequency, e.g. the frequency 'M' means the data is taken at each month
         :type frequency_data: str
 
         :param volume: trading volume of each asset during each period (array of size T*N), or average trading volume for each asset over all periods (N-d array)
