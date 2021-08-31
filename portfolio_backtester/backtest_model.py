@@ -490,9 +490,9 @@ class backtest_model:
             raise Exception('price data type is involved in your strategy, please provide data with type "price"')
 
         if isinstance(rfr, pd.Series) or isinstance(rfr, pd.DataFrame):
-            if rfr.empty and ('ex_return' in self.__involved_data_type):
+            if rfr.empty and (('ex_return' in self.__involved_data_type) or ('return' in self.__involved_data_type)):
                 raise Exception(
-                    'ex_return data type is involved in your strategy, please provide risk-free rate that does not equal to 0')
+                    'Please provide risk-free rate! (Set it to 0 if you do not want to consider it. Note that in this case, net_returns and net_excess_returns will be the same)')
             if not rfr.index.equals(data.index):
                 raise IndexError('Index of rfr and index of data do not match!')
         elif type(rfr) == int or type(rfr) == float:
