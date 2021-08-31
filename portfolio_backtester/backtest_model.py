@@ -821,7 +821,7 @@ def fetch_data(file_name):
 
 if __name__ == '__main__':
     data=fetch_data('SPSectors.csv')
-    # naive_alloc.backtest(data.iloc[:,1:],'M',window=120,rfr=data.iloc[:,0],data_type='ex_return',frequency_strategy='M')
+    naive_alloc.backtest(data.iloc[:,1:],'M',window=120,rfr=data.iloc[:,0],data_type='ex_return',frequency_strategy='M')
 
     # data = pd.read_csv('../../data/sp_500_prices_v2.csv', index_col='Date', parse_dates=['Date'])
     # data=fetch_data('sp_500_prices_v2.csv')
@@ -860,9 +860,9 @@ if __name__ == '__main__':
     extra_data.index = data.index
     # extra_data = extra_data.astype('float64')
     #
-    FF_3_factor_model.backtest(data.iloc[:, 1:], 'M', window=120, rfr=data.iloc[:, 0],
-                               data_type='ex_return', frequency_strategy='M',
-                               price_impact=False, tc_a=0.01 / 100, tc_b=0.01 / 200, extra_data=extra_data.iloc[:, :-1])
+    # FF_3_factor_model.backtest(data.iloc[:, 1:], 'M', window=120, rfr=data.iloc[:, 0],
+    #                            data_type='ex_return', frequency_strategy='M',
+    #                            price_impact=False, tc_a=0.01 / 100, tc_b=0.01 / 200, extra_data=extra_data.iloc[:, :-1])
 
     # hrp_alloc.backtest(data.iloc[:,1:],'M',window=120,rfr=data.iloc[:,0],data_type='ex_return',frequency_strategy='M')
 
