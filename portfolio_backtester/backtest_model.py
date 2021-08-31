@@ -59,6 +59,7 @@ class backtest_model:
             self.__name = name
 
         self.__last_test_frequency = None
+        self.__last_test_portfolios = None
         self.__price_impact = False
         self.__sharpe = None
         self.__ceq = None
@@ -194,10 +195,17 @@ class backtest_model:
             raise Exception('Please make sure your strategy builds a portfolios whose sum of weights does not exceed 1!')
 
         portfolios = pd.DataFrame(portfolios)
+
+        # save the portfolios for calling
+        self.__last_test_portfolios = portfolios.set_axis(excess_return_df.columns.values, axis='columns').set_axis(
+            excess_return_df.iloc[window - 1:].index.values, axis='index')
+
         excess_return_df = excess_return_df.iloc[window:]
         normal_return_df = normal_return_df.iloc[window:]
         risk_free_rate = risk_free_rate.iloc[window:]
         price_df = price_df.iloc[window:]
+
+
 
         # pre_balance portfolios that serves as denominators
         pre_balance_portfolios = (1 + normal_return_df).mul(portfolios.iloc[:-1].values)
@@ -276,6 +284,11 @@ class backtest_model:
                 'Please make sure your strategy builds a portfolios whose sum of weights does not exceed 1!')
 
         portfolios = pd.DataFrame(portfolios)
+
+        # save the portfolios for calling
+        self.__last_test_portfolios = portfolios.set_axis(excess_return_df.columns.values, axis='columns').set_axis(
+            excess_return_df.iloc[window - 1:].index.values, axis='index')
+
         excess_return_df = excess_return_df.iloc[window:]
         normal_return_df = normal_return_df.iloc[window:]
         risk_free_rate = risk_free_rate.iloc[window:]
@@ -568,6 +581,9 @@ class backtest_model:
         self.__ceq = np.mean(self.__net_excess_returns) - x / 2 * np.cov(self.__net_excess_returns, ddof=1)
         return self.__ceq
 
+    def get_portfolios(self):
+        return self.__last_test_portfolios
+
     def general_performance(self):
         '''
         Get a set of performance evaluation metrics of the model tested
@@ -808,7 +824,7 @@ if __name__ == '__main__':
     # data = pd.read_csv('data/SPSectors.csv',index_col='Date')
     # data.index = data.index.astype('str')
     # data.index = pd.to_datetime(data.index)
-    naive_alloc.backtest(data.iloc[:,1:],'M',window=120,rfr=data.iloc[:,0],data_type='ex_return',frequency_strategy='M')
+    # naive_alloc.backtest(data.iloc[:,1:],'M',window=120,rfr=data.iloc[:,0],data_type='ex_return',frequency_strategy='M')
 
     # data = pd.read_csv('../../data/sp_500_prices_v2.csv', index_col='Date', parse_dates=['Date'])
     # data = data.iloc[:, :12]
@@ -838,17 +854,17 @@ if __name__ == '__main__':
     #                     tc_a=0.1, tc_b=0.2, tc_f=1)
 
     #extra_data = pd.read_csv('../../data/FF3-monthly-192607-202106.csv', index_col='Date')
-    # extra_data=fetch_data('FF3_monthly_192607-202106.csv')
+    extra_data=fetch_data('FF3_monthly_192607-202106.csv')
     # extra_data.set_index('Date',inplace=True)
-    # start = '1981-01'
-    # end = '2003-01'
-    # extra_data = extra_data.loc[start:end]
-    # extra_data.index = data.index
+    start = '1981-01'
+    end = '2002-12'
+    extra_data = extra_data.loc[start:end]
+    extra_data.index = data.index
     # extra_data = extra_data.astype('float64')
     #
-    # FF_3_factor_model.backtest(data.iloc[:, 1:], 'M', window=120, rfr=data.iloc[:, 0],
-    #                            data_type='ex_return', frequency_strategy='M',
-    #                            price_impact=False, tc_a=0.01 / 100, tc_b=0.01 / 200, extra_data=extra_data.iloc[:, :-1])
+    FF_3_factor_model.backtest(data.iloc[:, 1:], 'M', window=120, rfr=data.iloc[:, 0],
+                               data_type='ex_return', frequency_strategy='M',
+                               price_impact=False, tc_a=0.01 / 100, tc_b=0.01 / 200, extra_data=extra_data.iloc[:, :-1])
 
     # hrp_alloc.backtest(data.iloc[:,1:],'M',window=120,rfr=data.iloc[:,0],data_type='ex_return',frequency_strategy='M')
 

@@ -142,9 +142,6 @@ import numpy as np
 import pandas as pd
 from portfolio_backtester import fetch_data
 data = fetch_data('SPSectors.csv')              # We are using built-in datasets in the library
-data.set_index('%date',inplace=True)
-data.index = data.index.astype('str')
-data.index = pd.to_datetime(data.index)
 
 # prepare the portfolio construction function
 def __naive_alloc(list_df):
@@ -227,17 +224,12 @@ import numpy as np
 import pandas as pd
 from portfolio_backtester import fetch_data
 data=fetch_data('SPSectors.csv')
-data.set_index('%date',inplace=True)
-data.index = data.index.astype('str')
-data.index = pd.to_datetime(data.index)
 
 extra_data=fetch_data('FF3_monthly_192607-202106.csv')     # extra factor data that is also included in the library
-extra_data.set_index('Date',inplace=True)
 start = '1981-01'
-end = '2003-01'
+end = '2002-12'
 extra_data = extra_data.loc[start:end]
 extra_data.index = data.index
-extra_data = extra_data.astype('float64')
 
 # prepare the portfolio construction function
 from sklearn.linear_model import LinearRegression
