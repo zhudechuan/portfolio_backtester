@@ -90,7 +90,6 @@ class backtest_model:
                 data = (1 + data).apply(lambda x: np.cumprod(x))
                 data['###rfr'] = rfr  # add 'rfr' to the dataframe to go through transformation together
                 data = data.resample(frequency_strategy).ffill()
-                #data = data.iloc[::interval, :]
                 normal_return_df = data.drop(columns='###rfr').pct_change().dropna()
                 excess_return_df = normal_return_df.sub(data['###rfr'], axis=0).dropna()
                 return (normal_return_df, excess_return_df, data['###rfr'].loc[normal_return_df.index],
@@ -108,7 +107,6 @@ class backtest_model:
                 data = (1 + data).apply(lambda x: np.cumprod(x))
                 data['###rfr'] = rfr  # add 'rfr' to the dataframe to go through transformation together
                 data = data.resample(frequency_strategy).ffill()
-                #data = data.iloc[::interval, :]
                 normal_return_df = data.drop(columns='###rfr').pct_change().dropna()
                 excess_return_df = normal_return_df.sub(data['###rfr'], axis=0).dropna()
                 return (normal_return_df, excess_return_df, data['###rfr'].loc[normal_return_df.index],
@@ -124,7 +122,6 @@ class backtest_model:
                 data = data.resample(frequency_strategy).ffill()
                 if price_impact:
                     volume = volume.resample(frequency_strategy).mean()
-            #data = data.iloc[::interval, :]
             normal_return_df = data.drop(columns='###rfr').pct_change().dropna()
             excess_return_df = normal_return_df.sub(data['###rfr'], axis=0).dropna()
             if price_impact:
@@ -371,7 +368,7 @@ class backtest_model:
         :param frequency_data: The frequency of the data provided, choose between {'D','W','M'}, where 'D' for day,'W' for week and 'M' for month. 'data' must be taken in the smallest unit of respective frequency, e.g. the frequency 'M' means the data is taken at each month
         :type frequency_data: str
 
-        :param volume: trading volume of each asset during each period (array of size T*N), or average trading volume for each asset over all periods (N-d array)
+        :param volume: trading volume of each asset during each period (array of size T*N), or average trading volume for each asset over all periods (N-d array). If passing in as pd.DataFrame, then its index must match that of the data.
         :type volume: pd.DataFrame or list or np.ndarray or pd.Series
 
         :param data_type: choose from {'price','return','ex_return'} where 'price' stands for price data of assets at each timestamp, 'return' stands for normal percentage return of each asset in each period, 'ex_return' stands for percentage return net of risk-free rate
@@ -473,32 +470,32 @@ class backtest_model:
                     extra_data.index = pd.to_datetime(extra_data.index)
                 except:
                     print(
-                        'Invalid index provided in your extra_data, please make sure that index is in compatible datetime format')
+                        'Invalid index provided in your "extra_data", please make sure that index is in compatible datetime format')
 
             else:
                 raise Exception(
-                    'extra_data need to be a Series or DataFrame with datetime index corresponding to test data provided')
+                    '"extra_data" need to be a Series or DataFrame with datetime index corresponding to test data provided')
 
             # if user-defined strategy need extra_data to operate, the library will NOT provide change of frequency functionality
             if frequency_strategy != frequency_data:
                 raise Exception(
-                    'If extra_data needed for your strategy, please make sure frequency_strategy matches frequency_data!')
+                    'If "extra_data" needed for your strategy, please make sure "frequency_strategy" matches "frequency_data"!')
             if not extra_data.index.equals(data.index):
                 raise IndexError('Index of extra_data and index of data do not match!')
 
         if (data_type == 'return' or data_type == 'ex_return') and ('price' in self.__involved_data_type):
-            raise Exception('price data type is involved in your strategy, please provide data with type "price"')
+            raise Exception('"price" data type is involved in your strategy, please provide data with type "price"')
 
         if isinstance(rfr, pd.Series) or isinstance(rfr, pd.DataFrame):
             if rfr.empty and (('ex_return' in self.__involved_data_type) or ('return' in self.__involved_data_type)):
                 raise Exception(
                     'Please provide risk-free rate! (Set it to 0 if you do not want to consider it. Note that in this case, net_returns and net_excess_returns will be the same)')
             if not rfr.index.equals(data.index):
-                raise IndexError('Index of rfr and index of data do not match!')
+                raise IndexError('Index of "rfr" and index of "data" do not match!')
         elif type(rfr) == int or type(rfr) == float:
             rfr = pd.Series([rfr] * data.shape[0], index=data.index)
         else:
-            raise Exception('Wrong format of rfr is given.')
+            raise Exception('Wrong format of "rfr" is given.')
 
         if tc_f != 0:
             if data_type != 'price':
@@ -513,7 +510,8 @@ class backtest_model:
                                         tc_a, tc_b, tc_f, initial_wealth, extra_data)
         else:
             if isinstance(volume, pd.DataFrame):
-                pass
+                if not volume.index.equals(data.index):
+                    raise Exception('Index of "volume" and "index" of data do not match!')
             elif isinstance(volume, pd.Series) or isinstance(volume, np.ndarray):
                 try:
                     volume = pd.DataFrame(volume.reshape(1, -1), columns=data.columns)
@@ -820,20 +818,18 @@ def fetch_data(file_name):
 
 
 if __name__ == '__main__':
-    data=fetch_data('SPSectors.csv')
-    naive_alloc.backtest(data.iloc[:,1:],'M',window=120,rfr=data.iloc[:,0],data_type='ex_return',frequency_strategy='M')
+    # data=fetch_data('SPSectors.csv')
+    # naive_alloc.backtest(data.iloc[:,1:],'M',window=120,rfr=data.iloc[:,0],data_type='ex_return',frequency_strategy='M')
 
-    # data = pd.read_csv('../../data/sp_500_prices_v2.csv', index_col='Date', parse_dates=['Date'])
-    # data=fetch_data('sp_500_prices_v2.csv')
-    # data = data.iloc[:, :12]
-    # volume = pd.read_csv('../../data/sp_500_volumes_v2.csv', index_col='Date', parse_dates=['Date'])
-    # volume=fetch_data('sp_500_volumes_v2.csv')
-    # volume = volume.loc[:, data.columns]
+    data=fetch_data('sp_500_prices_v2.csv')
+    data = data.iloc[:, :12]
+    volume=fetch_data('sp_500_volumes_v2.csv')
+    volume = volume.loc[:, data.columns]
     #
-    # naive_alloc.backtest(data, 'D', volume, window=10, interval=2, rfr=pd.Series([0.01] * data.shape[0], index=data.index),
-    #                     data_type='price', frequency_strategy='D',
-    #                     price_impact=False,
-    #                     tc_a=0.1, tc_b=0.2, tc_f=1)
+    naive_alloc.backtest(data, 'D', volume, window=10, interval=2, rfr=pd.Series([0.01] * data.shape[0], index=data.index),
+                        data_type='price', frequency_strategy='W',
+                        price_impact=False,
+                        tc_a=0.1, tc_b=0.2, tc_f=1)
 
     # naive_alloc.backtest(data, 'D', volume, window=3, interval=2, rfr=pd.Series([0.01] * data.shape[0], index=data.index),
     #                      data_type='price', frequency_strategy='M',
@@ -852,12 +848,11 @@ if __name__ == '__main__':
     #                     price_impact=False,
     #                     tc_a=0.1, tc_b=0.2, tc_f=1)
 
-    extra_data=fetch_data('FF3_monthly_192607-202106.csv')
-    # # extra_data.set_index('Date',inplace=True)
-    start = '1981-01'
-    end = '2002-12'
-    extra_data = extra_data.loc[start:end]
-    extra_data.index = data.index
+    # extra_data=fetch_data('FF3_monthly_192607-202106.csv')
+    # start = '1981-01'
+    # end = '2002-12'
+    # extra_data = extra_data.loc[start:end]
+    # extra_data.index = data.index
     # extra_data = extra_data.astype('float64')
     #
     # FF_3_factor_model.backtest(data.iloc[:, 1:], 'M', window=120, rfr=data.iloc[:, 0],
