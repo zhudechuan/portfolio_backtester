@@ -168,26 +168,27 @@ naive_alloc.backtest(data.iloc[:,1:],'M',window=120,rfr=data.iloc[:,0],
 Here are a few showcases of results the user can get:
 ```doctest
 >>> naive_alloc.general_performance()
-strategy name                              naive allocation portfolio
-Price impact                                                      OFF
-Start                                             1991-02-28 00:00:00
-End                                               2002-12-31 00:00:00
-Duration                                           4324 days 00:00:00
-Final Portfolio Return (%)                                  322.5701%
-Peak Portfolio Return (%)                                   424.5902%
-Bottom Portfolio Return (%)                                   7.3055%
-Historical Volatiltiy (%)                                     4.1633%
-Sharpe Ratio                                                   0.1799
-Sortino Ratio                                                  0.2701
-Calmar Ratio                                                   0.0094
-Max. Drawdown (%)                                            79.5449%
-Max. Drawdown Duration                             3745 days 00:00:00
-% of positive-net-excess-return periods                      62.9371%
-% of positive-net-return periods                             64.3357%
-Average turnover (%)                                          3.0853%
-Total turnover (%)                                          444.2821%
-95% VaR on net-excess returns                                -5.5679%
-95% VaR on net returns                                       -5.1337%
+strategy name                                             naive allocation portfolio
+Price impact                                                                     OFF
+Start date of portfolio                                          1991-02-28 00:00:00
+End date of portfolio                                            2002-12-31 00:00:00
+Frequency of rebalance (length of each testing period)                       1 Month
+Duration                                                                 143 periods
+Final Portfolio Return (%)                                                 422.5701%
+Peak Portfolio Return (%)                                                  524.5902%
+Bottom Portfolio Return (%)                                                107.3055%
+Historical Volatiltiy (%)                                                    4.1633%
+Sharpe Ratio                                                                  0.1799
+Sortino Ratio                                                                 0.2701
+Calmar Ratio                                                                  0.0094
+Max. Drawdown (%)                                                           79.5449%
+Max. Drawdown Duration                                            3745 days 00:00:00
+% of positive-net-excess-return periods                                     62.9371%
+% of positive-net-return periods                                            64.3357%
+Average turnover (%)                                                         3.0853%
+Total turnover (%)                                                         444.2821%
+95% VaR on net-excess returns                                               -5.5679%
+95% VaR on net returns                                                      -5.1337%
 dtype: object
 
 >>> naive_alloc.get_net_returns()
@@ -229,7 +230,7 @@ extra_data=fetch_data('FF3_monthly_192607-202106.csv')     # extra factor data t
 start = '1981-01'
 end = '2002-12'
 extra_data = extra_data.loc[start:end]
-extra_data.index = data.index
+extra_data.index = data.index                      # need to make sure that the index of the two dataframes match
 
 # prepare the portfolio construction function
 from sklearn.linear_model import LinearRegression
@@ -269,26 +270,27 @@ FF_3_factor_model.backtest(data.iloc[:, 1:], 'M', window=120, rfr=data.iloc[:, 0
 And some results are shown below:
 ```doctest
 >>> FF_3_factor_model.general_performance()
-strategy name                              Fama-French 3-factor model portfolio
-Price impact                                                                OFF
-Start                                                       1991-02-28 00:00:00
-End                                                         2002-12-31 00:00:00
-Duration                                                     4324 days 00:00:00
-Final Portfolio Return (%)                                            159.1316%
-Peak Portfolio Return (%)                                             254.4271%
-Bottom Portfolio Return (%)                                             5.9731%
-Historical Volatiltiy (%)                                               3.5768%
-Sharpe Ratio                                                             0.1065
-Sortino Ratio                                                            0.1608
-Calmar Ratio                                                             0.0054
-Max. Drawdown (%)                                                      70.1002%
-Max. Drawdown Duration                                       3501 days 00:00:00
-% of positive-net-excess-return periods                                58.0420%
-% of positive-net-return periods                                       59.4406%
-Average turnover (%)                                                   13.3530%
-Total turnover (%)                                                   1922.8387%
-95% VaR on net-excess returns                                          -5.7882%
-95% VaR on net returns                                                 -5.3991%
+strategy name                                             Fama-French 3-factor model portfolio
+Price impact                                                                               OFF
+Start date of portfolio                                                    1991-02-28 00:00:00
+End date of portfolio                                                      2002-12-31 00:00:00
+Frequency of rebalance (length of each testing period)                                 1 Month
+Duration                                                                           143 periods
+Final Portfolio Return (%)                                                           259.1316%
+Peak Portfolio Return (%)                                                            354.4271%
+Bottom Portfolio Return (%)                                                          105.9731%
+Historical Volatiltiy (%)                                                              3.5768%
+Sharpe Ratio                                                                            0.1065
+Sortino Ratio                                                                           0.1608
+Calmar Ratio                                                                            0.0054
+Max. Drawdown (%)                                                                     70.1002%
+Max. Drawdown Duration                                                      3501 days 00:00:00
+% of positive-net-excess-return periods                                               58.0420%
+% of positive-net-return periods                                                      59.4406%
+Average turnover (%)                                                                  13.3530%
+Total turnover (%)                                                                  1922.8387%
+95% VaR on net-excess returns                                                         -5.7882%
+95% VaR on net returns                                                                -5.3991%
 dtype: object
 
 >>> FF_3_factor_model.get_net_excess_returns()
