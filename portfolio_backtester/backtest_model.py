@@ -373,7 +373,7 @@ class backtest_model:
         :param window: length of rolling windows of 'data' wanted to feed into 'strategy' function. e.g. 'window'=60 means each time during rebalancing, past 60 periods of 'data' will be passed into user-defined strategy function
         :type window: int
 
-        :param frequency_strategy: The frequency on which the user want to use 'strategy' to rebalance the portfolio, choose between {'D','W','M'}. Note: 'frequency_data' should be smaller than 'frequency_strategy' with the sequence 'D' < 'W' < 'M'
+        :param frequency_strategy: The frequency on which the user want to use 'strategy' to rebalance the portfolio, choose between {'D','W','M'}. If "frequency_strategy" is different from "frequency_data", the library will resample data on "frequency_strategy". Note: 'frequency_data' should be smaller than 'frequency_strategy' with the sequence 'D' < 'W' < 'M'
         :type frequency_strategy: str
 
         :param price_impact: indicate whether to use price-impact model or not
@@ -434,6 +434,12 @@ class backtest_model:
 
         if frequency_strategy not in {'D', 'W', 'M'}:
             raise Exception("'frequency_strategy' must be chosen from {'D','W','M'}")
+
+        if frequency_data =='W' and frequency_strategy == 'D':
+            raise Exception("'frequency_data' should be smaller than 'frequency_strategy' with the sequence 'D' < 'W' < 'M'")
+
+        if frequency_data =='M' and frequency_strategy in {'D', 'W'}:
+            raise Exception("'frequency_data' should be smaller than 'frequency_strategy' with the sequence 'D' < 'W' < 'M'")
 
         if type(window) != int:
             raise Exception("'window' must be an 'int' variable")
