@@ -30,7 +30,7 @@ class backtest_model:
         :param need_extra_data: indicate whether the strategy need extra_data (data other than {'price','return','ex_return'}) to function. Note: 1. the datetime index of extra_data must match that of the provided data. 2. change-of-frequency functionality will be suspended if extra data is needed
         :type need_extra_data: bool
 
-        :param trace_back: indicate whether the strategy need to trace back to past portfolios to function. Note: please handle the boundary situation where past portfolios is empty in the strategy function :type trace_back:
+        :param trace_back: indicate whether the strategy need to trace back to past portfolios to function. Note: please handle the boundary situation where past portfolios is empty in the strategy function
         :type trace_back: bool
 
         :param name: name of the strategy to be tested
@@ -69,7 +69,7 @@ class backtest_model:
         self.__net_excess_returns = None
 
     # function to prepare data, including change of frequency, convert between price, return and ex_return
-    def __prepare_data(self, data, frequency_data, data_type, rfr, interval, window, frequency_strategy,
+    def __prepare_data(self, data, freq_data, data_type, rfr, interval, window, freq_strategy,
                        volume=pd.DataFrame(), price_impact=False):
 
         if not isinstance(data, pd.DataFrame):
@@ -84,12 +84,12 @@ class backtest_model:
         volume.index = pd.to_datetime(volume.index)
 
         if data_type == 'return':
-            if frequency_data != frequency_strategy:
+            if freq_data != freq_strategy:
                 warnings.warn(
                     'data_type==return with interval>1 or change of frequency, Expect large amount of computational error')
                 data = (1 + data).apply(lambda x: np.cumprod(x))
                 data['###rfr'] = rfr  # add 'rfr' to the dataframe to go through transformation together
-                data = data.resample(frequency_strategy).ffill()
+                data = data.resample(freq_strategy).ffill()
                 normal_return_df = data.drop(columns='###rfr').pct_change().dropna()
                 excess_return_df = normal_return_df.sub(data['###rfr'], axis=0).dropna()
                 return (normal_return_df, excess_return_df, data['###rfr'].loc[normal_return_df.index],
@@ -100,13 +100,13 @@ class backtest_model:
                 return (normal_return_df, excess_return_df, rfr.loc[normal_return_df.index],
                         pd.DataFrame(index=normal_return_df.index))
         elif data_type == 'ex_return':
-            if frequency_data != frequency_strategy:
+            if freq_data != freq_strategy:
                 warnings.warn(
                     'data_type==ex_return with interval>1 or change of frequency, Expect large amount of computational error')
                 data = data.add(rfr, axis=0)
                 data = (1 + data).apply(lambda x: np.cumprod(x))
                 data['###rfr'] = rfr  # add 'rfr' to the dataframe to go through transformation together
-                data = data.resample(frequency_strategy).ffill()
+                data = data.resample(freq_strategy).ffill()
                 normal_return_df = data.drop(columns='###rfr').pct_change().dropna()
                 excess_return_df = normal_return_df.sub(data['###rfr'], axis=0).dropna()
                 return (normal_return_df, excess_return_df, data['###rfr'].loc[normal_return_df.index],
@@ -118,10 +118,10 @@ class backtest_model:
                         pd.DataFrame(index=normal_return_df.index))
         elif data_type == 'price':
             data['###rfr'] = rfr  # add 'rfr' to the dataframe to go through transformation together
-            if frequency_data != frequency_strategy:
-                data = data.resample(frequency_strategy).ffill()
+            if freq_data != freq_strategy:
+                data = data.resample(freq_strategy).ffill()
                 if price_impact:
-                    volume = volume.resample(frequency_strategy).mean()
+                    volume = volume.resample(freq_strategy).mean()
             normal_return_df = data.drop(columns='###rfr').pct_change().dropna()
             excess_return_df = normal_return_df.sub(data['###rfr'], axis=0).dropna()
             if price_impact:
@@ -164,13 +164,13 @@ class backtest_model:
                             self.__strategy([map[i].loc[df.index] for i in self.__involved_data_type]))
         return historical_portfolios
 
-    def __test_price_impact(self, data, frequency_data, data_type, rfr, interval, window, frequency_strategy, tc_a,
-                            tc_b, tc_f, volume, c, initial_wealth, extra_data, price_impact_model='default'):
+    def __test_price_impact(self, data, freq_data, data_type, rfr, interval, window, freq_strategy, ptc_buy,
+                            ptc_sell, ftc, volume, c, initial_wealth, extra_data, price_impact_model='default'):
         # prepare data
-        normal_return_df, excess_return_df, volume, risk_free_rate, price_df = self.__prepare_data(data, frequency_data,
+        normal_return_df, excess_return_df, volume, risk_free_rate, price_df = self.__prepare_data(data, freq_data,
                                                                                                    data_type, rfr,
                                                                                                    interval, window,
-                                                                                                   frequency_strategy,
+                                                                                                   freq_strategy,
                                                                                                    volume,
                                                                                                    price_impact=True)
 
@@ -236,13 +236,13 @@ class backtest_model:
                                  'sell': 1 - c * (abs(diff[diff < 0]).div((volume * price_df).values)) ** 0.6}}
         pi_buy, pi_sell = pi_models[price_impact_model]['buy'], pi_models[price_impact_model]['sell']
 
-        # sell = ((abs(diff[diff < 0]).mul(1 - tc_b)) * (
+        # sell = ((abs(diff[diff < 0]).mul(1 - ptc_sell)) * (
         #         1 - c * (abs(diff[diff < 0]).div((volume * price_df).values)) ** 0.6)).sum(axis=1)
-        # buy = ((diff[diff >= 0].mul(1 + tc_a)) * (
+        # buy = ((diff[diff >= 0].mul(1 + ptc_buy)) * (
         #         1 + c * (diff[diff >= 0].div((volume * price_df).values)) ** 0.6)).sum(axis=1)
-        sell = ((abs(diff[diff < 0]).mul(1 - tc_b)) * pi_sell).sum(axis=1)
-        buy = ((diff[diff >= 0].mul(1 + tc_a)) * pi_buy).sum(axis=1)
-        fixed = diff[diff != 0].count(axis=1).mul(tc_f)
+        sell = ((abs(diff[diff < 0]).mul(1 - ptc_sell)) * pi_sell).sum(axis=1)
+        buy = ((diff[diff >= 0].mul(1 + ptc_buy)) * pi_buy).sum(axis=1)
+        fixed = diff[diff != 0].count(axis=1).mul(ftc)
         after_balance_money = pre_balance_money + sell - buy - fixed
         pre_balance_money_2 = after_balance_money[:-1].mul((1 + risk_free_rate.iloc[1:]).values)
 
@@ -254,13 +254,13 @@ class backtest_model:
 
         self.__sharpe = np.mean(self.__net_excess_returns) / np.std(self.__net_excess_returns, ddof=1)
 
-    def __test_no_price_impact(self, data, frequency_data, data_type, rfr, interval, window, frequency_strategy, tc_a,
-                               tc_b, tc_f, initial_wealth, extra_data):
+    def __test_no_price_impact(self, data, freq_data, data_type, rfr, interval, window, freq_strategy, ptc_buy,
+                               ptc_sell, ftc, initial_wealth, extra_data):
         # prepare data
-        normal_return_df, excess_return_df, risk_free_rate, price_df = self.__prepare_data(data, frequency_data,
+        normal_return_df, excess_return_df, risk_free_rate, price_df = self.__prepare_data(data, freq_data,
                                                                                            data_type, rfr,
                                                                                            interval, window,
-                                                                                           frequency_strategy)
+                                                                                           freq_strategy)
 
         T = excess_return_df.shape[0]  # length of dataset
         N = excess_return_df.shape[1]  # number of assets
@@ -305,7 +305,7 @@ class backtest_model:
         # pre_balance portfolios that serves as nominators
         pre_balance_portfolios_2 = (1 + normal_return_df.iloc[1:]).mul(portfolios.iloc[1:-1].values)
 
-        if tc_f != 0:
+        if ftc != 0:
             # factor in the initial_wealth for all 'diff','portfolios'
             portfolios *= initial_wealth
             pre_balance_portfolios *= initial_wealth
@@ -313,15 +313,15 @@ class backtest_model:
             diff *= initial_wealth
 
             # transaction cost impacts
-            if tc_a == tc_b == 0:
+            if ptc_buy == ptc_sell == 0:
                 excess_returns = excess_return_df.mul(portfolios.iloc[:-1].values).sum(axis=1)
                 self.__net_excess_returns = excess_returns[1:]
                 self.__net_returns = self.__net_excess_returns.add(risk_free_rate.iloc[1:].values)
                 # self.__net_excess_returns = excess_returns
             else:
-                sell = (abs(diff[diff < 0]).mul(1 - tc_b)).sum(axis=1)
-                buy = (diff[diff >= 0].mul(1 + tc_a)).sum(axis=1)
-                fixed = diff[diff != 0].count(axis=1).mul(tc_f)
+                sell = (abs(diff[diff < 0]).mul(1 - ptc_sell)).sum(axis=1)
+                buy = (diff[diff >= 0].mul(1 + ptc_buy)).sum(axis=1)
+                fixed = diff[diff != 0].count(axis=1).mul(ftc)
                 # evolution of money account
                 pre_balance_money = np.zeros(risk_free_rate.shape[0])
                 after_balance_money = pre_balance_money + sell - buy - fixed
@@ -333,14 +333,14 @@ class backtest_model:
                 self.__net_excess_returns = self.__net_returns.sub(risk_free_rate.iloc[1:].values)
         else:
             # transaction cost impacts
-            if tc_a == tc_b == 0:
+            if ptc_buy == ptc_sell == 0:
                 excess_returns = excess_return_df.mul(portfolios.iloc[:-1].values).sum(axis=1)
                 self.__net_excess_returns = excess_returns[1:]
                 self.__net_returns = self.__net_excess_returns.add(risk_free_rate.iloc[1:].values)
                 # self.__net_excess_returns = excess_returns
             else:
-                sell = (abs(diff[diff < 0]).mul(1 - tc_b)).sum(axis=1)
-                buy = (diff[diff >= 0].mul(1 + tc_a)).sum(axis=1)
+                sell = (abs(diff[diff < 0]).mul(1 - ptc_sell)).sum(axis=1)
+                buy = (diff[diff >= 0].mul(1 + ptc_buy)).sum(axis=1)
                 # evolution of money account
                 pre_balance_money = np.zeros(risk_free_rate.shape[0])
                 after_balance_money = pre_balance_money + sell - buy
@@ -353,10 +353,10 @@ class backtest_model:
 
         self.__sharpe = np.mean(self.__net_excess_returns) / np.std(self.__net_excess_returns, ddof=1)
 
-    def backtest(self, data, frequency_data, volume=pd.DataFrame(), data_type='price', rfr=pd.Series(dtype='float'),
+    def backtest(self, data, freq_data, volume=pd.DataFrame(), data_type='price', rfr=pd.Series(dtype='float'),
                  interval=1, window=60,
-                 frequency_strategy='D',
-                 price_impact=False, tc_a=0, tc_b=0, tc_f=0, c=1, initial_wealth=1E6,
+                 freq_strategy='D',
+                 price_impact=False, ptc_buy=0, ptc_sell=0, ftc=0, c=1, initial_wealth=1E6,
                  extra_data=pd.DataFrame(), price_impact_model='default'):
         """
         Start the backtesting process with the built model. The function itself will not return anything. To get the results,
@@ -365,8 +365,8 @@ class backtest_model:
         :param data: historical data that the strategy to be tested on. Index must be datetime format compatible
         :type data: pd.DataFrame
 
-        :param frequency_data: The frequency of the data provided, choose between {'D','W','M'}, where 'D' for day,'W' for week and 'M' for month. 'data' must be taken in the smallest unit of respective frequency, e.g. the frequency 'M' means the data is taken at each month
-        :type frequency_data: str
+        :param freq_data: The frequency of the data provided, choose between {'D','W','M'}, where 'D' for day,'W' for week and 'M' for month. 'data' must be taken in the smallest unit of respective frequency, e.g. the frequency 'M' means the data is taken at each month
+        :type freq_data: str
 
         :param volume: trading volume of each asset during each period (array of size T*N), or average trading volume for each asset over all periods (N-d array). If passing in as pd.DataFrame, then its index must match that of the data.
         :type volume: pd.DataFrame or list or np.ndarray or pd.Series
@@ -377,31 +377,31 @@ class backtest_model:
         :param rfr: data for risk-free rate in each period. Note: if 'rfr' is passed in as a dataframe or series, the index of 'rfr' must match that of 'data'
         :type rfr: pd.Series or pd.DataFrame or int or float
 
-        :param interval: number of periods that users want their portfolios to be rebalanced, the unit is based on 'frequency_strategy'. e.g. If 'frequency_data' is 'D', while 'frequency_strategy' is 'M', and 'interval' is 2, then the portfolio will be rebalanced every 2 months using the user-defined portfolio-construction strategy
+        :param interval: number of periods that users want their portfolios to be rebalanced, the unit is based on 'freq_strategy'. e.g. If 'freq_data' is 'D', while 'freq_strategy' is 'M', and 'interval' is 2, then the portfolio will be rebalanced every 2 months using the user-defined portfolio-construction strategy
         :type interval: int
 
         :param window: length of rolling windows of 'data' wanted to feed into 'strategy' function. e.g. 'window'=60 means each time during rebalancing, past 60 periods of 'data' will be passed into user-defined strategy function
         :type window: int
 
-        :param frequency_strategy: The frequency on which the user want to use 'strategy' to rebalance the portfolio, choose between {'D','W','M'}. If "frequency_strategy" is different from "frequency_data", the library will resample data on "frequency_strategy". Note: 'frequency_data' should be smaller than 'frequency_strategy' with the sequence 'D' < 'W' < 'M'
-        :type frequency_strategy: str
+        :param freq_strategy: The frequency on which the user want to use 'strategy' to rebalance the portfolio, choose between {'D','W','M'}. If "freq_strategy" is different from "freq_data", the library will resample data on "freq_strategy". Note: 'freq_data' should be smaller than 'freq_strategy' with the sequence 'D' < 'W' < 'M'
+        :type freq_strategy: str
 
         :param price_impact: indicate whether to use price-impact model or not
         :type price_impact: bool
 
-        :param tc_a: proportional transaction cost of buying each asset, measured in basis point. Can be a Series or array that provide one cost for each asset, or a single variable that stands for universal transaction cost. Note: Cannot be a list, and must not contain provide labels
-        :type tc_a: pd.Series or np.ndarray or int or float
+        :param ptc_buy: proportional transaction cost of buying each asset, measured in basis point. Can be a Series or array that provide one cost for each asset, or a single variable that stands for universal transaction cost. Note: Cannot be a list, and must not contain provide labels
+        :type ptc_buy: pd.Series or np.ndarray or int or float
 
-        :param tc_b: proportional transaction cost of selling each asset, measured in basis point. Can be a Series or array that provide one cost for each asset, or a single variable that stands for universal transaction cost. Note: Cannot be a list, and must not contain provide labels
-        :type tc_b: pd.Series or np.ndarray or int or float
+        :param ptc_sell: proportional transaction cost of selling each asset, measured in basis point. Can be a Series or array that provide one cost for each asset, or a single variable that stands for universal transaction cost. Note: Cannot be a list, and must not contain provide labels
+        :type ptc_sell: pd.Series or np.ndarray or int or float
 
-        :param tc_f: dollar value of fixed transaction cost of each transaction, measured in one unit of any currency.
-        :type tc_f: int or float
+        :param ftc: dollar value of fixed transaction cost of each transaction, measured in one unit of any currency.
+        :type ftc: int or float
 
         :param c: market depth indicators. Can be a Series or array that provide one market depth for each asset, or a single variable that stands for universal market depth. Note: Do NOT provide labels
         :type c: pd.Series or int or np.ndarray or float
 
-        :param initial_wealth: dollar value of initial wealth of testing when 'price-impact' is true or 'tc_f'!=0
+        :param initial_wealth: dollar value of initial wealth of testing when 'price-impact' is true or 'ftc'!=0
         :type initial_wealth: int or float
 
         :param extra_data: extra_data to be passed into 'strategy' only when 'need_extra_data'==True. Note: 1. the datetime index of extra_data must match that of the provided data. 2. change-of-frequency functionality will be suspended if extra data is needed
@@ -421,35 +421,35 @@ class backtest_model:
         if type(c) != float and type(c) != int and not isinstance(c, pd.Series) and not isinstance(c.np.ndarray):
             raise Exception("Wrong type of 'c' given!")
 
-        if type(tc_f) != int and type(tc_f) != float:
-            raise Exception("Wrong type of 'tc_f' given!")
+        if type(ftc) != int and type(ftc) != float:
+            raise Exception("Wrong type of 'ftc' given!")
 
-        if type(tc_a) != int and type(tc_a) != float and not isinstance(tc_a, pd.Series) and not isinstance(tc_a,
+        if type(ptc_buy) != int and type(ptc_buy) != float and not isinstance(ptc_buy, pd.Series) and not isinstance(ptc_buy,
                                                                                                             np.ndarray):
-            raise Exception("Wrong type of 'tc_a' provided!")
+            raise Exception("Wrong type of 'ptc_buy' provided!")
         else:
-            tc_a /= 10000
+            ptc_buy /= 10000
 
-        if type(tc_b) != int and type(tc_b) != float and not isinstance(tc_b, pd.Series) and not isinstance(tc_b,
+        if type(ptc_sell) != int and type(ptc_sell) != float and not isinstance(ptc_sell, pd.Series) and not isinstance(ptc_sell,
                                                                                                             np.ndarray):
-            raise Exception("Wrong type of 'tc_b' provided!")
+            raise Exception("Wrong type of 'ptc_sell' provided!")
         else:
-            tc_b /= 10000
+            ptc_sell /= 10000
 
         if type(price_impact) != bool:
             raise Exception("'price_impact' must be a boolean variable")
 
-        if frequency_data not in {'D', 'W', 'M'}:
-            raise Exception("'frequency_data' must be chosen from {'D','W','M'}")
+        if freq_data not in {'D', 'W', 'M'}:
+            raise Exception("'freq_data' must be chosen from {'D','W','M'}")
 
-        if frequency_strategy not in {'D', 'W', 'M'}:
-            raise Exception("'frequency_strategy' must be chosen from {'D','W','M'}")
+        if freq_strategy not in {'D', 'W', 'M'}:
+            raise Exception("'freq_strategy' must be chosen from {'D','W','M'}")
 
-        if frequency_data =='W' and frequency_strategy == 'D':
-            raise Exception("'frequency_data' should be smaller than 'frequency_strategy' with the sequence 'D' < 'W' < 'M'")
+        if freq_data =='W' and freq_strategy == 'D':
+            raise Exception("'freq_data' should be smaller than 'freq_strategy' with the sequence 'D' < 'W' < 'M'")
 
-        if frequency_data =='M' and frequency_strategy in {'D', 'W'}:
-            raise Exception("'frequency_data' should be smaller than 'frequency_strategy' with the sequence 'D' < 'W' < 'M'")
+        if freq_data =='M' and freq_strategy in {'D', 'W'}:
+            raise Exception("'freq_data' should be smaller than 'freq_strategy' with the sequence 'D' < 'W' < 'M'")
 
         if type(window) != int:
             raise Exception("'window' must be an 'int' variable")
@@ -458,7 +458,7 @@ class backtest_model:
             raise Exception("'interval' must be an 'int' variable")
 
         if initial_wealth == 1E6:
-            if price_impact == True or tc_f != 0:
+            if price_impact == True or ftc != 0:
                 warnings.warn('Using default initial_wealth value @1E6!')
 
         if self.__need_extra_data == True:
@@ -477,9 +477,9 @@ class backtest_model:
                     '"extra_data" need to be a Series or DataFrame with datetime index corresponding to test data provided')
 
             # if user-defined strategy need extra_data to operate, the library will NOT provide change of frequency functionality
-            if frequency_strategy != frequency_data:
+            if freq_strategy != freq_data:
                 raise Exception(
-                    'If "extra_data" needed for your strategy, please make sure "frequency_strategy" matches "frequency_data"!')
+                    'If "extra_data" needed for your strategy, please make sure "freq_strategy" matches "freq_data"!')
             if not extra_data.index.equals(data.index):
                 raise IndexError('Index of extra_data and index of data do not match!')
 
@@ -497,17 +497,17 @@ class backtest_model:
         else:
             raise Exception('Wrong format of "rfr" is given.')
 
-        if tc_f != 0:
+        if ftc != 0:
             if data_type != 'price':
-                raise Exception('data_type must be "price" when using fixed transaction cost (tc_f!=0)')
+                raise Exception('data_type must be "price" when using fixed transaction cost (ftc!=0)')
 
         # divide into price_impact model and no_price_impact model
         self.__price_impact = price_impact
         frequency_map = {'D': 'Day', 'W': 'Week', 'M': 'Month'}
         if price_impact == False:
-            self.__last_test_frequency=f'{interval} {frequency_map[frequency_strategy]}'
-            self.__test_no_price_impact(data, frequency_data, data_type, rfr, interval, window, frequency_strategy,
-                                        tc_a, tc_b, tc_f, initial_wealth, extra_data)
+            self.__last_test_frequency=f'{interval} {frequency_map[freq_strategy]}'
+            self.__test_no_price_impact(data, freq_data, data_type, rfr, interval, window, freq_strategy,
+                                        ptc_buy, ptc_sell, ftc, initial_wealth, extra_data)
         else:
             if isinstance(volume, pd.DataFrame):
                 if not volume.index.equals(data.index):
@@ -534,9 +534,9 @@ class backtest_model:
                     'Must provide correct volume of each asset for price-impact model. For specific requirements '
                     'please refer to the description of the function')
             else:
-                self.__last_test_frequency=f'{interval} {frequency_map[frequency_strategy]}'
-                self.__test_price_impact(data, frequency_data, data_type, rfr, interval, window, frequency_strategy,
-                                         tc_a, tc_b, tc_f, volume, c, initial_wealth, extra_data, price_impact_model)
+                self.__last_test_frequency=f'{interval} {frequency_map[freq_strategy]}'
+                self.__test_price_impact(data, freq_data, data_type, rfr, interval, window, freq_strategy,
+                                         ptc_buy, ptc_sell, ftc, volume, c, initial_wealth, extra_data, price_impact_model)
 
         return
 
@@ -819,34 +819,34 @@ def fetch_data(file_name):
 
 if __name__ == '__main__':
     # data=fetch_data('SPSectors.csv')
-    # naive_alloc.backtest(data.iloc[:,1:],'M',window=120,rfr=data.iloc[:,0],data_type='ex_return',frequency_strategy='M')
+    # naive_alloc.backtest(data.iloc[:,1:],'M',window=120,rfr=data.iloc[:,0],data_type='ex_return',freq_strategy='M')
 
     data=fetch_data('sp_500_prices_v2.csv')
     data = data.iloc[:, :12]
     volume=fetch_data('sp_500_volumes_v2.csv')
     volume = volume.loc[:, data.columns]
     #
-    naive_alloc.backtest(data, 'D', volume, window=10, interval=2, rfr=pd.Series([0.01] * data.shape[0], index=data.index),
-                        data_type='price', frequency_strategy='W',
-                        price_impact=False,
-                        tc_a=0.1, tc_b=0.2, tc_f=1)
+    # naive_alloc.backtest(data, 'D', volume, window=10, interval=2, rfr=pd.Series([0.01] * data.shape[0], index=data.index),
+    #                     data_type='price', freq_strategy='W',
+    #                     price_impact=False,
+    #                     ptc_buy=0.1, ptc_sell=0.2, ftc=1)
 
-    # naive_alloc.backtest(data, 'D', volume, window=3, interval=2, rfr=pd.Series([0.01] * data.shape[0], index=data.index),
-    #                      data_type='price', frequency_strategy='M',
-    #                      price_impact=True,
-    #                      tc_a=0.1, tc_b=0.2, tc_f=1, c=pd.Series([1] * data.shape[1]))
+    naive_alloc.backtest(data, 'D', volume, window=3, interval=2, rfr=pd.Series([0.01] * data.shape[0], index=data.index),
+                         data_type='price', freq_strategy='M',
+                         price_impact=True,
+                         ptc_buy=0.1, ptc_sell=0.2, ftc=1, c=pd.Series([1] * data.shape[1]))
 
     #
 
     # min_var.backtest(data, 'D', volume, window=120, rfr=pd.Series([0.01] * data.shape[0], index=data.index),
-    #                     data_type='price', frequency_strategy='D',
+    #                     data_type='price', freq_strategy='D',
     #                     price_impact=False,
-    #                     tc_a=0.1, tc_b=0.2, tc_f=1)
+    #                     ptc_buy=0.1, ptc_sell=0.2, ftc=1)
 
     # naive_alloc.backtest(data, 'D', volume, window=120, rfr=pd.Series([0.01] * data.shape[0], index=data.index),
-    #                     data_type='price', frequency_strategy='D',
+    #                     data_type='price', freq_strategy='D',
     #                     price_impact=False,
-    #                     tc_a=0.1, tc_b=0.2, tc_f=1)
+    #                     ptc_buy=0.1, ptc_sell=0.2, ftc=1)
 
     # extra_data=fetch_data('FF3_monthly_192607-202106.csv')
     # start = '1981-01'
@@ -856,9 +856,9 @@ if __name__ == '__main__':
     # extra_data = extra_data.astype('float64')
     #
     # FF_3_factor_model.backtest(data.iloc[:, 1:], 'M', window=120, rfr=data.iloc[:, 0],
-    #                            data_type='ex_return', frequency_strategy='M',
-    #                            price_impact=False, tc_a=0.01 / 100, tc_b=0.01 / 200, extra_data=extra_data.iloc[:, :-1])
+    #                            data_type='ex_return', freq_strategy='M',
+    #                            price_impact=False, ptc_buy=0.01 / 100, ptc_sell=0.01 / 200, extra_data=extra_data.iloc[:, :-1])
 
-    # hrp_alloc.backtest(data.iloc[:,1:],'M',window=120,rfr=data.iloc[:,0],data_type='ex_return',frequency_strategy='M')
+    # hrp_alloc.backtest(data.iloc[:,1:],'M',window=120,rfr=data.iloc[:,0],data_type='ex_return',freq_strategy='M')
 
     pass
