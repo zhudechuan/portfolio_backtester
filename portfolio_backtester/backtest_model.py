@@ -16,7 +16,7 @@ class backtest_model:
     transaction costs, etc.
     """
 
-    def __init__(self, strategy, involved_data_type, need_extra_data=False, trace_back=False, name='Unnamed'):
+    def __init__(self, strategy, involved_data_type, need_extra_data=False, trace_back=False, name='Unnamed', missing_val=False):
         """
         Initiate the model with the strategy function, and clarify involved data types needed, whose sequence MUST be consistent
         with that of the list of dataframes used inside strategy function
@@ -35,8 +35,22 @@ class backtest_model:
 
         :param name: name of the strategy to be tested
         :type name: str
+
+        :param missing_val : indicate whether user strategy function can handle missing values in the data on its own. True means the function can deal with missing values. False means it cannot. A wrapper function would be applied to the strategy function to deal with missing data.
+        :type missing_val: bool
         """
-        self.__strategy = strategy
+
+        def wrapper(function, list_df):
+            df = list_df[0]
+            position_nan = df.isna().any().values
+            w = np.zeros(df.shape[1])
+            w[position_nan == False] = function([df.dropna(axis=1)])
+            return w
+
+        if not missing_val:
+            self.__strategy = lambda x: wrapper(strategy, x)
+        else:
+            self.__strategy = strategy
 
         if type(involved_data_type) != list:
             raise Exception('"involved_data_type" must be given in a list')
@@ -82,21 +96,23 @@ class backtest_model:
                 'Invalid index provided in your test data, please make sure that index is in compatible datetime format')
 
         volume.index = pd.to_datetime(volume.index)
+        data = data.copy()
 
         if data_type == 'return':
             if freq_data != freq_strategy:
                 warnings.warn(
                     'data_type==return with interval>1 or change of frequency, Expect large amount of computational error')
-                data = (1 + data).apply(lambda x: np.cumprod(x))
                 data['###rf'] = rf  # add 'rf' to the dataframe to go through transformation together
-                data = data.resample(freq_strategy).ffill()
-                normal_return_df = data.drop(columns='###rf').pct_change().dropna(axis=0,how='all')
-                excess_return_df = normal_return_df.sub(data['###rf'], axis=0).dropna(axis=0,how='all')
-                return (normal_return_df, excess_return_df, data['###rf'].loc[normal_return_df.index],
+                data = (1 + data).apply(lambda x: np.cumprod(x))
+                data = data.resample(freq_strategy).ffill().pct_change().dropna(axis=0, how='all')
+                normal_return_df = data.iloc[:,:-1]
+                risk_free_df=data.iloc[:,-1]
+                excess_return_df = normal_return_df.sub(risk_free_df.values, axis=0).dropna(axis=0, how='all')
+                return (normal_return_df, excess_return_df, risk_free_df,
                         pd.DataFrame(index=normal_return_df.index))
             else:
                 normal_return_df = data
-                excess_return_df = normal_return_df.sub(rf, axis=0)
+                excess_return_df = normal_return_df.sub(rf.values, axis=0)
                 return (normal_return_df, excess_return_df, rf.loc[normal_return_df.index],
                         pd.DataFrame(index=normal_return_df.index))
         elif data_type == 'ex_return':
@@ -104,12 +120,13 @@ class backtest_model:
                 warnings.warn(
                     'data_type==ex_return with interval>1 or change of frequency, Expect large amount of computational error')
                 data = data.add(rf, axis=0)
-                data = (1 + data).apply(lambda x: np.cumprod(x))
                 data['###rf'] = rf  # add 'rf' to the dataframe to go through transformation together
-                data = data.resample(freq_strategy).ffill()
-                normal_return_df = data.drop(columns='###rf').pct_change().dropna(axis=0,how='all')
-                excess_return_df = normal_return_df.sub(data['###rf'], axis=0).dropna(axis=0,how='all')
-                return (normal_return_df, excess_return_df, data['###rf'].loc[normal_return_df.index],
+                data = (1 + data).apply(lambda x: np.cumprod(x))
+                data = data.resample(freq_strategy).ffill().pct_change().dropna(axis=0, how='all')
+                normal_return_df = data.iloc[:, :-1]
+                risk_free_df = data.iloc[:, -1]
+                excess_return_df = normal_return_df.sub(risk_free_df.values, axis=0).dropna(axis=0, how='all')
+                return (normal_return_df, excess_return_df, risk_free_df,
                         pd.DataFrame(index=normal_return_df.index))
             else:
                 excess_return_df = data
@@ -117,20 +134,23 @@ class backtest_model:
                 return (normal_return_df, excess_return_df, rf.loc[normal_return_df.index],
                         pd.DataFrame(index=normal_return_df.index))
         elif data_type == 'price':
-            data['###rf'] = rf  # add 'rf' to the dataframe to go through transformation together
+            #data['###rf'] = rf  # add 'rf' to the dataframe to go through transformation together
+            rf_df=np.cumprod(1+rf)
             if freq_data != freq_strategy:
                 data = data.resample(freq_strategy).ffill()
+                rf_df=rf_df.resample(freq_strategy).ffill()
                 if price_impact:
                     volume = volume.resample(freq_strategy).mean()
-            normal_return_df = data.drop(columns='###rf').pct_change().dropna(axis=0,how='all')
-            excess_return_df = normal_return_df.sub(data['###rf'], axis=0).dropna(axis=0,how='all')
+            normal_return_df = data.pct_change().dropna(axis=0, how='all')
+            risk_free_df=rf_df.pct_change().dropna(axis=0,how='all')
+            excess_return_df = normal_return_df.sub(risk_free_df.values, axis=0)
             if price_impact:
                 return (normal_return_df, excess_return_df, volume.loc[normal_return_df.index],
-                        data['###rf'].loc[normal_return_df.index],
-                        data.drop(columns='###rf').loc[normal_return_df.index])
+                        risk_free_df,
+                        data.loc[normal_return_df.index])
             else:
-                return (normal_return_df, excess_return_df, data['###rf'].loc[normal_return_df.index],
-                        data.drop(columns='###rf').loc[normal_return_df.index])
+                return (normal_return_df, excess_return_df, risk_free_df,
+                        data.loc[normal_return_df.index])
 
     # rebalance function to be applied to each rolling window of length (window)
     def __rebalance(self, ex_return_df, normal_return_df, price_df, window, extra_data=None):
@@ -187,9 +207,10 @@ class backtest_model:
         portfolios = self.__rebalance(excess_return_df, normal_return_df, price_df, window, extra_data)
 
         try:
-            assert sum(portfolios[0])<=1+0.000001
+            assert sum(portfolios[0]) <= 1 + 0.000001
         except:
-            raise Exception('Please make sure your strategy builds a portfolios whose sum of weights does not exceed 1!')
+            raise Exception(
+                'Please make sure your strategy builds a portfolios whose sum of weights does not exceed 1!')
 
         portfolios = pd.DataFrame(portfolios).iloc[::interval]
 
@@ -197,12 +218,25 @@ class backtest_model:
         self.__last_test_portfolios = portfolios.set_axis(excess_return_df.columns.values, axis='columns').set_axis(
             excess_return_df.iloc[window - 1::interval].index.values, axis='index')
 
-        excess_return_df = excess_return_df.iloc[window - 1::interval].iloc[1:]
-        normal_return_df = normal_return_df.iloc[window - 1::interval].iloc[1:]
-        risk_free_rate = risk_free_rate.iloc[window - 1::interval].iloc[1:]
-        price_df = price_df.iloc[window - 1::interval].iloc[1:]
-
-
+        if interval > 1:
+            if price_df.empty:
+                df=normal_return_df.join(risk_free_rate)
+                df=(1+df.iloc[window-1:]).apply(lambda x:np.cumprod(x)).iloc[::interval].pct_change().dropna(axis=0,how='all')
+                normal_return_df=df.iloc[:,:-1]
+                risk_free_rate=df.iloc[:,-1]
+                excess_return_df = normal_return_df.sub(risk_free_rate.values, axis=0)
+                price_df = price_df.iloc[window - 1::interval].iloc[1:]
+            else:
+                price_df = price_df.iloc[window - 1::interval]
+                normal_return_df=price_df.pct_change().dropna(axis=0,how='all')
+                risk_free_rate=np.cumprod(1+risk_free_rate[window-1:]).iloc[::interval].pct_change().dropna(axis=0,how='all')
+                excess_return_df=normal_return_df.sub(risk_free_rate.values, axis=0)
+                price_df=price_df.iloc[1:]
+        else:
+            excess_return_df = excess_return_df.iloc[window:]
+            normal_return_df = normal_return_df.iloc[window:]
+            risk_free_rate = risk_free_rate.iloc[window:]
+            price_df = price_df.iloc[window:]
 
         # pre_balance portfolios that serves as denominators
         pre_balance_portfolios = (1 + normal_return_df).mul(portfolios.iloc[:-1].values)
@@ -211,7 +245,7 @@ class backtest_model:
         # normalise portfolio weight before rebalancing at the start of each period
         # note that turnover ratio is not affected by price-impact model
         pre_balance_portfolios = pre_balance_portfolios.div(pre_balance_portfolios.sum(axis=1).values, axis=0)
-        diff = (portfolios.iloc[1:].sub(pre_balance_portfolios.values)).dropna(axis=0,how='all')
+        diff = (portfolios.iloc[1:].sub(pre_balance_portfolios.values)).dropna(axis=0, how='all')
         self.__total_turnover = abs(diff).sum(axis=1).sum()
         self.__average_turnover = self.__total_turnover / (T - window)
 
@@ -225,7 +259,7 @@ class backtest_model:
         diff *= initial_wealth
 
         # transform volume to average volume
-        volume = volume.rolling(window).mean().dropna(axis=0,how='all').loc[normal_return_df.index]
+        volume = volume.rolling(window).mean().dropna(axis=0, how='all').loc[normal_return_df.index]
 
         # evolution of money account
         pre_balance_money = np.zeros(risk_free_rate.shape[0])
@@ -286,10 +320,26 @@ class backtest_model:
         self.__last_test_portfolios = portfolios.set_axis(excess_return_df.columns.values, axis='columns').set_axis(
             excess_return_df.iloc[window - 1::interval].index.values, axis='index')
 
-        excess_return_df = excess_return_df.iloc[window-1::interval].iloc[1:]
-        normal_return_df = normal_return_df.iloc[window-1::interval].iloc[1:]
-        risk_free_rate = risk_free_rate.iloc[window-1::interval].iloc[1:]
-        price_df = price_df.iloc[window-1::interval].iloc[1:]
+        if interval > 1:
+            if price_df.empty:
+                df = normal_return_df.join(risk_free_rate)
+                df = (1 + df.iloc[window - 1:]).apply(lambda x: np.cumprod(x)).iloc[::interval].pct_change().dropna(
+                    axis=0, how='all')
+                normal_return_df = df.iloc[:, :-1]
+                risk_free_rate = df.iloc[:, -1]
+                excess_return_df = normal_return_df.sub(risk_free_rate.values, axis=0)
+                price_df = price_df.iloc[window - 1::interval].iloc[1:]
+            else:
+                price_df = price_df.iloc[window - 1::interval]
+                normal_return_df = price_df.pct_change().dropna(axis=0, how='all')
+                risk_free_rate=np.cumprod(1+risk_free_rate[window-1:]).iloc[::interval].pct_change().dropna(axis=0,how='all')
+                excess_return_df = normal_return_df.sub(risk_free_rate.values, axis=0)
+                price_df = price_df.iloc[1:]
+        else:
+            excess_return_df = excess_return_df.iloc[window:]
+            normal_return_df = normal_return_df.iloc[window:]
+            risk_free_rate = risk_free_rate.iloc[window:]
+            price_df = price_df.iloc[window:]
 
         # pre_balance portfolios that serves as denominators
         pre_balance_portfolios = (1 + normal_return_df).mul(portfolios.iloc[:-1].values)
@@ -298,7 +348,7 @@ class backtest_model:
         # normalise portfolio weight before rebalancing at the start of each period
         # note that turnover ratio is not affected by price-impact model
         pre_balance_portfolios = pre_balance_portfolios.div(pre_balance_portfolios.sum(axis=1).values, axis=0)
-        diff = (portfolios.iloc[1:].sub(pre_balance_portfolios.values)).dropna(axis=0,how='all')
+        diff = (portfolios.iloc[1:].sub(pre_balance_portfolios.values)).dropna(axis=0, how='all')
         self.__total_turnover = abs(diff).sum(axis=1).sum()
         self.__average_turnover = self.__total_turnover / (T - window)
 
@@ -424,14 +474,16 @@ class backtest_model:
         if type(ftc) != int and type(ftc) != float:
             raise Exception("Wrong type of 'ftc' given!")
 
-        if type(ptc_buy) != int and type(ptc_buy) != float and not isinstance(ptc_buy, pd.Series) and not isinstance(ptc_buy,
-                                                                                                            np.ndarray):
+        if type(ptc_buy) != int and type(ptc_buy) != float and not isinstance(ptc_buy, pd.Series) and not isinstance(
+                ptc_buy,
+                np.ndarray):
             raise Exception("Wrong type of 'ptc_buy' provided!")
         else:
             ptc_buy /= 10000
 
-        if type(ptc_sell) != int and type(ptc_sell) != float and not isinstance(ptc_sell, pd.Series) and not isinstance(ptc_sell,
-                                                                                                            np.ndarray):
+        if type(ptc_sell) != int and type(ptc_sell) != float and not isinstance(ptc_sell, pd.Series) and not isinstance(
+                ptc_sell,
+                np.ndarray):
             raise Exception("Wrong type of 'ptc_sell' provided!")
         else:
             ptc_sell /= 10000
@@ -445,10 +497,10 @@ class backtest_model:
         if freq_strategy not in {'D', 'W', 'M'}:
             raise Exception("'freq_strategy' must be chosen from {'D','W','M'}")
 
-        if freq_data =='W' and freq_strategy == 'D':
+        if freq_data == 'W' and freq_strategy == 'D':
             raise Exception("'freq_data' should be smaller than 'freq_strategy' with the sequence 'D' < 'W' < 'M'")
 
-        if freq_data =='M' and freq_strategy in {'D', 'W'}:
+        if freq_data == 'M' and freq_strategy in {'D', 'W'}:
             raise Exception("'freq_data' should be smaller than 'freq_strategy' with the sequence 'D' < 'W' < 'M'")
 
         if type(window) != int:
@@ -487,7 +539,7 @@ class backtest_model:
             raise Exception('"price" data type is involved in your strategy, please provide data with type "price"')
 
         if isinstance(rf, pd.Series) or isinstance(rf, pd.DataFrame):
-            #if rf.empty and (('ex_return' in self.__involved_data_type) or ('return' in self.__involved_data_type)):
+            # if rf.empty and (('ex_return' in self.__involved_data_type) or ('return' in self.__involved_data_type)):
             if rf.empty:
                 raise Exception(
                     'Please provide risk-free rate! (Set it to 0 if you do not want to consider it. Note that in this case, net_returns and net_excess_returns will be the same)')
@@ -506,7 +558,7 @@ class backtest_model:
         self.__price_impact = price_impact
         frequency_map = {'D': 'Day', 'W': 'Week', 'M': 'Month'}
         if price_impact == False:
-            self.__last_test_frequency=f'{interval} {frequency_map[freq_strategy]}'
+            self.__last_test_frequency = f'{interval} {frequency_map[freq_strategy]}'
             self.__test_no_price_impact(data, freq_data, data_type, rf, interval, window, freq_strategy,
                                         ptc_buy, ptc_sell, ftc, initial_wealth, extra_data)
         else:
@@ -535,9 +587,10 @@ class backtest_model:
                     'Must provide correct volume of each asset for price-impact model. For specific requirements '
                     'please refer to the description of the function')
             else:
-                self.__last_test_frequency=f'{interval} {frequency_map[freq_strategy]}'
+                self.__last_test_frequency = f'{interval} {frequency_map[freq_strategy]}'
                 self.__test_price_impact(data, freq_data, data_type, rf, interval, window, freq_strategy,
-                                         ptc_buy, ptc_sell, ftc, volume, c, initial_wealth, extra_data, price_impact_model)
+                                         ptc_buy, ptc_sell, ftc, volume, c, initial_wealth, extra_data,
+                                         price_impact_model)
 
         return
 
@@ -593,7 +646,7 @@ class backtest_model:
         output['Start date of portfolio'] = self.__net_returns.index[0]
         output['End date of portfolio'] = self.__net_returns.index[-1]
 
-        output['Frequency of rebalance']=self.__last_test_frequency
+        output['Frequency of rebalance'] = self.__last_test_frequency
         output['Duration'] = f'{self.__net_returns.shape[0]} periods'
 
         evolution = np.cumprod(1 + self.__net_returns)
@@ -789,10 +842,10 @@ def __Bayes_Stein(list_df):  # ex_return
 
 Bayes_Stein_shrink = backtest_model(__Bayes_Stein, ['ex_return'], name='Bayes_Stein_shrinkage portfolio')
 
-
-
 # A small function that fetch the data included in the library package
 from importlib import resources
+
+
 def fetch_data(file_name):
     '''
     Fetch the specific data file from the library.
@@ -808,14 +861,14 @@ def fetch_data(file_name):
 
     try:
         with resources.path("portfolio_backtester.data", file_name) as path:
-            return pd.read_csv(path,index_col='Date',parse_dates=True)
+            return pd.read_csv(path, index_col='Date', parse_dates=True)
     except FileNotFoundError:
         raise FileNotFoundError('No such file. Check your file name!')
 
 
 if __name__ == '__main__':
     # data=fetch_data('SPSectors.csv')
-    # naive_alloc.backtest(data.iloc[:,1:],'M',window=120,rf=data.iloc[:,0],data_type='ex_return',freq_strategy='M')
+    # naive_alloc.backtest(data.iloc[:,1:],'M',window=120,interval=2, rf=data.iloc[:,0],data_type='ex_return',freq_strategy='M')
     # Bayes_Stein_shrink.backtest(data.iloc[:,1:],'M',window=120,rf=data.iloc[:,0],data_type='ex_return',freq_strategy='M')
     # basic_mean_variance.backtest(data.iloc[:,1:],'M',window=120,rf=data.iloc[:,0],data_type='ex_return',freq_strategy='M')
     # min_var.backtest(data.iloc[:,1:],'M',window=120,rf=data.iloc[:,0],data_type='ex_return',freq_strategy='M')
@@ -825,7 +878,7 @@ if __name__ == '__main__':
     # volume=fetch_data('sp_500_volumes_v2.csv')
     # volume = volume.loc[:, data.columns]
     #
-    # naive_alloc.backtest(data, 'D', volume, window=10, interval=2, rf=pd.Series([0.01] * data.shape[0], index=data.index),
+    # naive_alloc.backtest(data, 'D', window=10, interval=2, rf=pd.Series([0.01] * data.shape[0], index=data.index),
     #                     data_type='price', freq_strategy='W',
     #                     price_impact=False,
     #                     ptc_buy=0.1, ptc_sell=0.2, ftc=1)
@@ -860,8 +913,15 @@ if __name__ == '__main__':
 
     # hrp_alloc.backtest(data.iloc[:,1:],'M',window=120,rf=data.iloc[:,0],data_type='ex_return',freq_strategy='M')
 
+    #
+    #
     data = fetch_data('sp500-0317.csv')
-    df=df=data.iloc[2400:2600,:5]
-    naive_alloc.backtest(df.copy(), freq_data='D', rf=0)
+    df = data.iloc[2400:2600, :5]
+    naive = backtest_model(__naive_alloc, ['price'], name='naive allocation portfolio')
+    naive.backtest(df, freq_data='D', rf=0,interval=2)
 
+    # return_df = df.pct_change()
+    # return_df.dropna(axis=0, how='all', inplace=True)
+    # iv = backtest_model(lambda x: wrapper(__iv_alloc, x), ['return'])
+    # iv.backtest(return_df, freq_data='D', data_type='return', rf=0)
     pass
