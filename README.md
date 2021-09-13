@@ -58,12 +58,12 @@ def strategy_name(list_df, extra_data, historical_portfolio):
 ```
 where `list_df` is the list of dataframes that the strategy works with in each period, the sequence of which
 should corresponds to `involved_data_type` in the model initialization step later in this section.
-`extra_data` and `historical_portfolio` are optional arguments if the strategy need extra data
+`extra_data` and `historical_portfolio` are optional arguments if the strategy needs extra data
 or need to refer to past portfolios to construct a new portfolio for the current period. The function should
 return a portfolio weight allocation, denoted by `w` here, that **sums up to 1**, in the form of `np.ndarray` or 
 `pd.Series` or `pd.DataFrame`.
 
->Note 1: The function must only return ***ONE*** weight allocation for that period.
+>Note 1: The function must only return ***ONE*** weight allocation for each period.
 > 
 >Note 2: The sequence of assets in the return of the function should be consistent with the sequence of assets
 > in the data on which the strategy is to be tested throughout the whole process. 
@@ -104,17 +104,17 @@ Now it is all set up! The model object is ready to be tested on selected data.
 
 To test the model on selected data, simply call the function `backtest` on the model object
 ```python
-strategy_model.backtest(data, frequency_data, 
+strategy_model.backtest(data, freq_data, 
                         volume=pd.DataFrame(), data_type='price', rfr=pd.Series(dtype='float'),
                         interval=1, window=60,
-                        frequency_strategy='D',
+                        freq_strategy='D',
                         price_impact=False, tc_a=0, tc_b=0, tc_f=0, c=1, initial_wealth=1E6,
                         extra_data=pd.DataFrame(), price_impact_model='default')
 ```
-although only `data` and `frequency_data` are necessary arguments, the user needs to make sure
+although only `data` and `freq_data` are necessary arguments, the user needs to make sure
 that 
 1. `data_type` actually matches the *type* of data that the model is tested on; 
-2. `frequency_strategy` matches the frequency at which the user wants the strategy to rebalance the portfolio. 
+2. `freq_strategy` matches the frequency at which the user wants the strategy to rebalance the portfolio. 
 
 For available choices and specific requirements of each argument, please refer to the full manual for detailed explaination
 and description.
@@ -163,36 +163,35 @@ from portfolio_backtester import naive_alloc
 # 3. Test
 # Most basic version of testing, no change of frequency, price impact not included, no transaction cost, etc.
 naive_alloc.backtest(data.iloc[:,1:],'M',window=120,rfr=data.iloc[:,0],
-                     data_type='ex_return',frequency_strategy='M')
+                     data_type='ex_return',freq_strategy='M')
 ```
 Here are a few showcases of results the user can get:
 ```doctest
->>> naive_alloc.general_performance()
-strategy name                                             naive allocation portfolio
-Price impact                                                                     OFF
-Start date of portfolio                                          1991-02-28 00:00:00
-End date of portfolio                                            2002-12-31 00:00:00
-Frequency of rebalance (length of each testing period)                       1 Month
-Duration                                                                 143 periods
-Final Portfolio Return (%)                                                 422.5701%
-Peak Portfolio Return (%)                                                  524.5902%
-Bottom Portfolio Return (%)                                                107.3055%
-Historical Volatiltiy (%)                                                    4.1633%
-Sharpe Ratio                                                                  0.1799
-Sortino Ratio                                                                 0.2701
-Calmar Ratio                                                                  0.0094
-Max. Drawdown (%)                                                           79.5449%
-Max. Drawdown Duration                                            3745 days 00:00:00
-% of positive-net-excess-return periods                                     62.9371%
-% of positive-net-return periods                                            64.3357%
-Average turnover (%)                                                         3.0853%
-Total turnover (%)                                                         444.2821%
-95% VaR on net-excess returns                                               -5.5679%
-95% VaR on net returns                                                      -5.1337%
+strategy name                              naive allocation portfolio
+Price impact                                                      OFF
+Start date of portfolio                           1991-02-28 00:00:00
+End date of portfolio                             2002-12-31 00:00:00
+Frequency of rebalance                                        1 Month
+Duration                                                  143 periods
+Final Portfolio Return (%)                                  422.5701%
+Peak Portfolio Return (%)                                   524.5902%
+Bottom Portfolio Return (%)                                 107.3055%
+Historical Volatiltiy (%)                                     4.1633%
+Sharpe Ratio                                                   0.1799
+Sortino Ratio                                                  0.2701
+Calmar Ratio                                                   0.0094
+Max. Drawdown (%)                                            79.5449%
+Max. Drawdown Duration                             3745 days 00:00:00
+% of positive-net-excess-return periods                      62.9371%
+% of positive-net-return periods                             64.3357%
+Average turnover (%)                                          3.0853%
+Total turnover (%)                                          444.2821%
+95% VaR on net-excess returns                                -5.5679%
+95% VaR on net returns                                       -5.1337%
 dtype: object
 
 >>> naive_alloc.get_net_returns()
-%date
+Date
 1991-02-28    0.073055
 1991-03-28    0.030464
 1991-04-30   -0.001455
@@ -263,38 +262,38 @@ from portfolio_backtester import FF_3_factor_model
 # 3. Test
 # Add transaction cost into the backtest
 FF_3_factor_model.backtest(data.iloc[:, 1:], 'M', window=120, rfr=data.iloc[:, 0],
-                           data_type='ex_return', frequency_strategy='M',
-                           price_impact=False, tc_a=0.01 / 100, tc_b=0.01 / 200, 
+                           data_type='ex_return', freq_strategy='M',
+                           price_impact=False, ptc_buy=0.01 / 200, ptc_sell=0.01 / 100, 
                            extra_data=extra_data.iloc[:, :-1])
 ```
 And some results are shown below:
 ```doctest
 >>> FF_3_factor_model.general_performance()
-strategy name                                             Fama-French 3-factor model portfolio
-Price impact                                                                               OFF
-Start date of portfolio                                                    1991-02-28 00:00:00
-End date of portfolio                                                      2002-12-31 00:00:00
-Frequency of rebalance (length of each testing period)                                 1 Month
-Duration                                                                           143 periods
-Final Portfolio Return (%)                                                           259.1316%
-Peak Portfolio Return (%)                                                            354.4271%
-Bottom Portfolio Return (%)                                                          105.9731%
-Historical Volatiltiy (%)                                                              3.5768%
-Sharpe Ratio                                                                            0.1065
-Sortino Ratio                                                                           0.1608
-Calmar Ratio                                                                            0.0054
-Max. Drawdown (%)                                                                     70.1002%
-Max. Drawdown Duration                                                      3501 days 00:00:00
-% of positive-net-excess-return periods                                               58.0420%
-% of positive-net-return periods                                                      59.4406%
-Average turnover (%)                                                                  13.3530%
-Total turnover (%)                                                                  1922.8387%
-95% VaR on net-excess returns                                                         -5.7882%
-95% VaR on net returns                                                                -5.3991%
+strategy name                              Fama-French 3-factor model portfolio
+Price impact                                                                OFF
+Start date of portfolio                                     1991-02-28 00:00:00
+End date of portfolio                                       2002-12-31 00:00:00
+Frequency of rebalance                                                  1 Month
+Duration                                                            143 periods
+Final Portfolio Return (%)                                            259.1316%
+Peak Portfolio Return (%)                                             354.4271%
+Bottom Portfolio Return (%)                                           105.9731%
+Historical Volatiltiy (%)                                               3.5768%
+Sharpe Ratio                                                             0.1065
+Sortino Ratio                                                            0.1608
+Calmar Ratio                                                             0.0054
+Max. Drawdown (%)                                                      70.1002%
+Max. Drawdown Duration                                       3501 days 00:00:00
+% of positive-net-excess-return periods                                58.0420%
+% of positive-net-return periods                                       59.4406%
+Average turnover (%)                                                   13.3530%
+Total turnover (%)                                                   1922.8387%
+95% VaR on net-excess returns                                          -5.7882%
+95% VaR on net returns                                                 -5.3991%
 dtype: object
 
 >>> FF_3_factor_model.get_net_excess_returns()
-%date
+Date
 1991-02-28    0.054931
 1991-03-28    0.018295
 1991-04-30   -0.020621
