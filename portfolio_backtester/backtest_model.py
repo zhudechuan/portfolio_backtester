@@ -5,6 +5,7 @@ import pandas as pd
 import warnings
 from sklearn.linear_model import LinearRegression
 import scipy.cluster.hierarchy as sch
+import datetime
 
 
 class backtest_model:
@@ -36,19 +37,51 @@ class backtest_model:
         :param name: name of the strategy to be tested
         :type name: str
 
-        :param missing_val : indicate whether user strategy function can handle missing values in the data on its own. True means the function can deal with missing values. False means it cannot. A wrapper function would be applied to the strategy function to deal with missing data.
+        :param missing_val : indicate whether user strategy function can handle missing values in the data on its own. True means the function can deal with missing values. False means it cannot. A wrapper function would be applied to the strategy function to deal with missing data. It will only pass in columns with full data and assign to other assets weight 0 while keeping the relative position the same. Warning:  1. The wrapper will slow the running speed significantly. 2. The wrapper does not cover missing data in "extra_data"..
         :type missing_val: bool
         """
 
-        def wrapper(function, list_df):
-            df = list_df[0]
-            position_nan = df.isna().any().values
-            w = np.zeros(df.shape[1])
-            w[position_nan == False] = function([df.dropna(axis=1)])
+        # if (need_extra_data or trace_back) and not missing_val:
+        #     raise Exception('Since you need to use "extra_data" or "trace_back" function, please deal with missing values!')
+
+        def wrapper(function, list_df, extra_data=pd.DataFrame(), historical_portfolios=pd.DataFrame()):
+            length = list_df[0].shape[1]
+            for frame in list_df:
+                if length >= len(frame.columns[frame.isna().any() == False]):
+                    length = len(frame.columns[frame.isna().any() == False])
+                    position_nan = frame.isna().any().values
+            w = np.zeros(list_df[0].shape[1])
+            if need_extra_data:
+                if trace_back:
+                    w[position_nan == False] = function([frame[frame.columns[position_nan == False]] for frame in list_df],extra_data, historical_portfolios)
+                else:
+                    w[position_nan == False] = function([frame[frame.columns[position_nan == False]] for frame in list_df],extra_data)
+            else:
+                if trace_back:
+                    w[position_nan == False] = function([frame[frame.columns[position_nan == False]] for frame in list_df],historical_portfolios)
+                else:
+                    w[position_nan == False] = function([frame[frame.columns[position_nan == False]] for frame in list_df])
             return w
 
         if not missing_val:
-            self.__strategy = lambda x: wrapper(strategy, x)
+            if name not in ['naive allocation portfolio',
+                             'inverse variance allocation portfolio',
+                             'min. variance allocation portfolio',
+                             'basic mean-variance allocation portfolio',
+                             'Fama-French 3-factor model portfolio',
+                             'hierarchical-risk-parity portfolio',
+                             'Bayes_Stein_shrinkage portfolio']:
+                warnings.warn('The library will deal with missing data. Running speed will be significantly reduced!')
+            if need_extra_data:
+                if trace_back:
+                    self.__strategy = lambda x,y,z: wrapper(strategy, x,extra_data=y,historical_portfolios=z)
+                else:
+                    self.__strategy = lambda x,y: wrapper(strategy, x,extra_data=y)
+            else:
+                if trace_back:
+                    self.__strategy = lambda x,z: wrapper(strategy, x,historical_portfolios=z)
+                else:
+                    self.__strategy = lambda x: wrapper(strategy, x)
         else:
             self.__strategy = strategy
 
@@ -70,7 +103,7 @@ class backtest_model:
         if type(name) != str:
             raise Exception('"name" must be a string variable')
         else:
-            self.__name = name
+            self.name = name
 
         self.__last_test_frequency = None
         self.__last_test_portfolios = None
@@ -363,43 +396,32 @@ class backtest_model:
             diff *= initial_wealth
 
             # transaction cost impacts
-            if ptc_buy == ptc_sell == 0:
-                excess_returns = excess_return_df.mul(portfolios.iloc[:-1].values).sum(axis=1)
-                self.__net_excess_returns = excess_returns[1:]
-                self.__net_returns = self.__net_excess_returns.add(risk_free_rate.iloc[1:].values)
-                # self.__net_excess_returns = excess_returns
-            else:
-                sell = (abs(diff[diff < 0]).mul(1 - ptc_sell)).sum(axis=1)
-                buy = (diff[diff >= 0].mul(1 + ptc_buy)).sum(axis=1)
-                fixed = diff[diff != 0].count(axis=1).mul(ftc)
-                # evolution of money account
-                pre_balance_money = np.zeros(risk_free_rate.shape[0])
-                after_balance_money = pre_balance_money + sell - buy - fixed
-                pre_balance_money_2 = after_balance_money[:-1].mul((1 + risk_free_rate.iloc[1:]).values)
+            sell = (abs(diff[diff < 0]).mul(1 - ptc_sell)).sum(axis=1)
+            buy = (diff[diff >= 0].mul(1 + ptc_buy)).sum(axis=1)
+            fixed = diff[diff != 0].count(axis=1).mul(ftc)
+            # evolution of money account
+            pre_balance_money = np.zeros(risk_free_rate.shape[0])
+            after_balance_money = pre_balance_money + sell - buy - fixed
+            pre_balance_money_2 = after_balance_money[:-1].mul((1 + risk_free_rate.iloc[1:]).values)
 
-                self.__net_returns = (pre_balance_portfolios_2.sum(axis=1).add(pre_balance_money_2.values)).div(
-                    pre_balance_portfolios.sum(axis=1).add(pre_balance_money).iloc[:-1].values) - 1
+            self.__net_returns = (pre_balance_portfolios_2.sum(axis=1).add(pre_balance_money_2.values)).div(
+                pre_balance_portfolios.sum(axis=1).add(pre_balance_money).iloc[:-1].values) - 1
 
-                self.__net_excess_returns = self.__net_returns.sub(risk_free_rate.iloc[1:].values)
+            self.__net_excess_returns = self.__net_returns.sub(risk_free_rate.iloc[1:].values)
         else:
             # transaction cost impacts
-            if ptc_buy == ptc_sell == 0:
-                excess_returns = excess_return_df.mul(portfolios.iloc[:-1].values).sum(axis=1)
-                self.__net_excess_returns = excess_returns[1:]
-                self.__net_returns = self.__net_excess_returns.add(risk_free_rate.iloc[1:].values)
-                # self.__net_excess_returns = excess_returns
-            else:
-                sell = (abs(diff[diff < 0]).mul(1 - ptc_sell)).sum(axis=1)
-                buy = (diff[diff >= 0].mul(1 + ptc_buy)).sum(axis=1)
-                # evolution of money account
-                pre_balance_money = np.zeros(risk_free_rate.shape[0])
-                after_balance_money = pre_balance_money + sell - buy
-                pre_balance_money_2 = after_balance_money[:-1].mul((1 + risk_free_rate.iloc[1:]).values)
+            sell = (abs(diff[diff < 0]).mul(1 - ptc_sell)).sum(axis=1)
+            buy = (diff[diff >= 0].mul(1 + ptc_buy)).sum(axis=1)
+            # evolution of money account
+            pre_balance_money = np.zeros(risk_free_rate.shape[0])
+            after_balance_money = pre_balance_money + sell - buy
+            pre_balance_money_2 = after_balance_money[:-1].mul((1 + risk_free_rate.iloc[1:]).values)
 
-                self.__net_returns = (pre_balance_portfolios_2.sum(axis=1).add(pre_balance_money_2.values)).div(
-                    pre_balance_portfolios.sum(axis=1).add(pre_balance_money).iloc[:-1].values) - 1
+            self.__net_returns = (pre_balance_portfolios_2.sum(axis=1).add(pre_balance_money_2.values)).div(
+                pre_balance_portfolios.sum(axis=1).add(pre_balance_money).iloc[:-1].values) - 1
 
-                self.__net_excess_returns = self.__net_returns.sub(risk_free_rate.iloc[1:].values)
+            self.__net_excess_returns = self.__net_returns.sub(risk_free_rate.iloc[1:].values)
+
 
         self.__sharpe = np.mean(self.__net_excess_returns) / np.std(self.__net_excess_returns, ddof=1)
 
@@ -550,9 +572,9 @@ class backtest_model:
         else:
             raise Exception('Wrong format of "rf" is given.')
 
-        if ftc != 0:
-            if data_type != 'price':
-                raise Exception('data_type must be "price" when using fixed transaction cost (ftc!=0)')
+        # if ftc != 0:
+        #     if data_type != 'price':
+        #         raise Exception('data_type must be "price" when using fixed transaction cost (ftc!=0)')
 
         # divide into price_impact model and no_price_impact model
         self.__price_impact = price_impact
@@ -613,13 +635,16 @@ class backtest_model:
         # self.__sharpe = np.mean(self.__net_excess_returns) / np.std(self.__net_excess_returns, ddof=1)
         return self.__sharpe
 
-    def get_turnover(self):
+    def get_turnover(self, typ='average'):
         '''
         Get the average turnover rate of each period as well as total turnover rate over all periods of the model tested
+
+        :param typ: choose from {'average','total'}, which indicates average turnover and total turnover respectively
+        :type typ: str
         '''
-        print(f"average turnover is: {self.__average_turnover:.5%}")
-        print(f"total turnover is: {self.__total_turnover:.5%}")
-        return
+        # print(f"average turnover is: {self.__average_turnover:.5%}")
+        # print(f"total turnover is: {self.__total_turnover:.5%}")
+        return self.__average_turnover if typ=='average' else self.__total_turnover
 
     def get_ceq(self, x=1):
         '''
@@ -641,7 +666,7 @@ class backtest_model:
         Get a set of performance evaluation metrics of the model tested
         '''
         output = {}
-        output['strategy name'] = self.__name
+        output['strategy name'] = self.name
         output['Price impact'] = 'ON' if self.__price_impact else 'OFF'
         output['Start date of portfolio'] = self.__net_returns.index[0]
         output['End date of portfolio'] = self.__net_returns.index[-1]
@@ -689,7 +714,7 @@ def __naive_alloc(list_df):
     return res
 
 
-naive_alloc = backtest_model(__naive_alloc, ['ex_return'], name='naive allocation portfolio')
+naive_alloc = backtest_model(__naive_alloc, ['ex_return'], name='naive allocation portfolio');
 
 
 def __iv_alloc(list_df):
@@ -715,7 +740,7 @@ def __min_var(list_df):
     return w
 
 
-min_var = backtest_model(__min_var, ['return'], name='min. variance allocation portfolio')
+min_var = backtest_model(__min_var, ['ex_return'], name='min. variance allocation portfolio')
 
 
 def __mean_variance(list_df):
@@ -732,25 +757,28 @@ def __mean_variance(list_df):
 basic_mean_variance = backtest_model(__mean_variance, ['ex_return'], name='basic mean-variance allocation portfolio')
 
 
-def __FF3(list_df, extra_data):
+def __FF3(list_df, extra_data):               # with missing data handling
     df = list_df[0]
+    position_nan = df.isna().any().values
+    w = np.zeros(df.shape[1])
 
     X = extra_data
-    y = df
+    y = df[df.columns[position_nan == False]]
     reg = LinearRegression(fit_intercept=True).fit(X, y)
     beta = reg.coef_
     var_epi = (y - reg.predict(X)).var(axis=0)
     cov = np.dot(np.dot(beta, X.cov()), beta.T) + np.diag(var_epi)
 
     in_cov = np.linalg.inv(cov)
-    n = df.shape[1]
-    w = np.dot(in_cov, np.ones(n))
-    w /= w.sum()
+    temp_w = np.dot(in_cov, np.ones(y.shape[1]))
+    temp_w /= temp_w.sum()
+
+    w[position_nan == False] = temp_w
     return w
 
 
 FF_3_factor_model = backtest_model(__FF3, ['ex_return'], need_extra_data=True,
-                                   name='Fama-French 3-factor model portfolio')
+                                   name='Fama-French 3-factor model portfolio',missing_val=True)
 
 
 def __hrp_alloc(list_df):
@@ -839,6 +867,21 @@ def __Bayes_Stein(list_df):  # ex_return
     w /= w.sum()
     return w
 
+def __Bayes_Stein_2(list_df):  # ex_return
+    df = list_df[0]
+    m = 120
+    u_ = df.mean(axis=0)
+    n = df.shape[1]
+    cov_ = np.dot((df - u_).T, df - u_) / (m - n - 2)
+    min_w=__min_var(list_df)
+    u_min=np.dot(u_, min_w)
+    inv_cov = np.linalg.inv(cov_)
+    sig = (n + 2) / (m * np.dot(np.dot((u_ - u_min).T, inv_cov), u_ - u_min) + n + 2)
+    u_bs = (1 - sig) * u_ + sig * u_min
+    w = np.dot(inv_cov, u_bs)
+    w /= w.sum()
+    return w
+
 
 Bayes_Stein_shrink = backtest_model(__Bayes_Stein, ['ex_return'], name='Bayes_Stein_shrinkage portfolio')
 
@@ -867,9 +910,9 @@ def fetch_data(file_name):
 
 
 if __name__ == '__main__':
-    # data=fetch_data('SPSectors.csv')
-    # naive_alloc.backtest(data.iloc[:,1:],'M',window=120,interval=2, rf=data.iloc[:,0],data_type='ex_return',freq_strategy='M')
-    # Bayes_Stein_shrink.backtest(data.iloc[:,1:],'M',window=120,rf=data.iloc[:,0],data_type='ex_return',freq_strategy='M')
+    data=fetch_data('SPSectors.csv')
+    #naive_alloc.backtest(data.iloc[:,1:],'M',window=120,interval=1, rf=data.iloc[:,0],data_type='ex_return',freq_strategy='M',ftc=0)
+    Bayes_Stein_shrink.backtest(data.iloc[:,1:],'M',window=120,rf=data.iloc[:,0],data_type='ex_return',freq_strategy='M')
     # basic_mean_variance.backtest(data.iloc[:,1:],'M',window=120,rf=data.iloc[:,0],data_type='ex_return',freq_strategy='M')
     # min_var.backtest(data.iloc[:,1:],'M',window=120,rf=data.iloc[:,0],data_type='ex_return',freq_strategy='M')
 
@@ -900,13 +943,16 @@ if __name__ == '__main__':
     #                     price_impact=False,
     #                     ptc_buy=0.1, ptc_sell=0.2, ftc=1)
 
+    # data=fetch_data('russell2000-1314.csv')
     # extra_data=fetch_data('FF3_monthly_192607-202106.csv')
-    # start = '1981-01'
-    # end = '2002-12'
+    # # extra_data = fetch_data('FF3_daily_19260701-20210630.csv')
+    # start = datetime.datetime(data.index[0].year, data.index[0].month, 1)
+    # end = datetime.datetime(data.index[-1].year, data.index[-1].month, 31)
     # extra_data = extra_data.loc[start:end]
-    # extra_data.index = data.index
-    # extra_data = extra_data.astype('float64')
-    #
+    # extra_data.index=data.index
+    # # FF_3_factor_model.backtest(data, freq_data='D', freq_strategy='D', window=60, data_type='price', rf=0,
+    # #                extra_data=extra_data.iloc[:, :-1])
+    # #
     # FF_3_factor_model.backtest(data.iloc[:, 1:], 'M', window=120, rf=data.iloc[:, 0],
     #                            data_type='ex_return', freq_strategy='M',
     #                            price_impact=False, ptc_buy=0.01 , ptc_sell=0.02 , extra_data=extra_data.iloc[:, :-1])
@@ -915,10 +961,10 @@ if __name__ == '__main__':
 
     #
     #
-    data = fetch_data('sp500-0317.csv')
-    df = data.iloc[2400:2600, :5]
-    naive = backtest_model(__naive_alloc, ['price'], name='naive allocation portfolio')
-    naive.backtest(df, freq_data='D', rf=0,interval=2)
+    # data = fetch_data('sp500-0317.csv')
+    # df = data.iloc[2400:2600, :5]
+    # naive = backtest_model(__naive_alloc, ['price','return'], name='naive allocation portfolio')
+    # naive.backtest(df, freq_data='D', rf=0)
 
     # return_df = df.pct_change()
     # return_df.dropna(axis=0, how='all', inplace=True)
