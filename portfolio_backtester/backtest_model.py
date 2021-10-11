@@ -41,9 +41,6 @@ class backtest_model:
         :type missing_val: bool
         """
 
-        # if (need_extra_data or trace_back) and not missing_val:
-        #     raise Exception('Since you need to use "extra_data" or "trace_back" function, please deal with missing values!')
-
         def wrapper(function, list_df, extra_data=pd.DataFrame(), historical_portfolios=pd.DataFrame()):
             length = list_df[0].shape[1]
             for frame in list_df:
@@ -705,8 +702,316 @@ class backtest_model:
         return pd.Series(output)
 
 
+
+
+class mperiods_backtest_model(backtest_model):
+    '''
+    Subclass mperiods_backtest_model, which specifically handles multi-periods strategies. No trace_back argument needed
+    because the library automatically enable tracing back to the last portfolio of previous interval.
+    '''
+
+    def __init__(self, strategy, involved_data_type, need_extra_data=False, name='Unnamed'):
+        """
+        Initiate the model with the strategy function, and clarify involved data types needed, whose sequence MUST be consistent
+        with that of the list of dataframes used inside strategy function
+
+        :param strategy: user-defined function that serves as portfolio construction strategy. Note: different from single-period strategies where functions only take list_df as input (other than extra_data and past_portfolios), multi-periods strategy functions also take current wealth x as input.
+        :type strategy: function
+
+        :param involved_data_type: a list of strings that indicate the type of data {'price','return','ex_return'} used in the strategy, the order of the strings will be the order that data are passed to the strategy. Note: in multi-periods models, the library only accepts a list of length 1 at the moment
+        :type involved_data_type: list
+
+        :param need_extra_data: indicate whether the strategy need extra_data (data other than {'price','return','ex_return'}) to function. Note: 1. the datetime index of extra_data must match that of the provided data. 2. change-of-frequency functionality will be suspended if extra data is needed
+        :type need_extra_data: bool
+
+        :param name: name of the strategy to be tested
+        :type name: str
+        """
+        self.__strategy = strategy
+        if name not in ['multi-periods global minimum variance portfolio']:
+            warnings.warn('The library will deal with missing data. Running speed will be significantly reduced!')
+
+        if type(involved_data_type) != list:
+            raise Exception('"involved_data_type" must be given in a list')
+        else:
+            self.__involved_data_type = involved_data_type
+
+        if type(need_extra_data) != bool:
+            raise Exception('"need_extra_data" must be a bool variable')
+        else:
+            self.__need_extra_data = need_extra_data
+
+        if type(name) != str:
+            raise Exception('"name" must be a string variable')
+        else:
+            self.name = name
+
+        self.__last_test_frequency = None
+        self.__last_test_portfolios = None
+        self.__price_impact = False
+        self.__sharpe = None
+        self.__ceq = None
+        self.__average_turnover = None
+        self.__total_turnover = None
+        self.__net_returns = None
+        self.__net_excess_returns = None
+
+
+# add in options to pass in extra_data and historical_portfolios later
+    def __each_interval(self,ex_return_df, normal_return_df, price_df, rf, window, interval, last_portfolio, ptc_buy=0,
+                        ptc_sell=0, ftc=0, volume=pd.DataFrame(), c=1, initial_wealth=1E6, extra_data=None,
+                        price_impact=False, price_impact_model='default'):
+        '''
+        everything should match that of the main function "backtest" except for "rf".
+        last_portfolio: the EVOLVED version of last portfolio available. Note that The very first portfolio would be all 0's.
+        We pass that to the first interval to calculate the frictions
+        '''
+
+        portfolios = []  # Not measured in weights but money values in each asset
+        turnover = 0
+
+        map = {'price': price_df, 'ex_return': ex_return_df, 'return': normal_return_df}
+        #     length = list_df[0].shape[1]
+        #     for frame in list_df:
+        #         if length >= len(frame.columns[frame.isna().any() == False]):
+        #             length = len(frame.columns[frame.isna().any() == False])
+        #             position_nan = frame.isna().any().values
+        df = map[self.__involved_data_type[0]]
+        position_nan = df.isna().any().values
+        df = df[df.columns[position_nan == False]]
+
+        # arguments calculation will be done in each strategy function
+
+        if price_impact:  # with price impact
+            if last_portfolio.sum() == 0:  # boundary condition at the first portfolio
+                money_account = initial_wealth
+            else:
+                money_account = 0
+            for t in range(interval):
+                if t == 0:  # at the start of each interval
+                    x = initial_wealth
+                    if self.__need_extra_data:
+                        temp_u = self.__strategy([df.iloc[:window, :]], x, extra_data.iloc[:window, :])
+                    else:
+                        temp_u = self.__strategy([df.iloc[:window, :]], x)
+                    money_account = money_account + x - temp_u.sum()  # reset/re-initiate money account
+                    u = np.zeros(df.shape[1])
+                    u[position_nan == False] = temp_u
+                    diff = u - last_portfolio
+                    turnover += sum(abs(diff)) / x
+                    portfolios.append(u)
+                else:
+                    # first calculate the new current wealth x
+                    evolved_u = (1 + normal_return_df.iloc[window + t - 1, :]).mul(portfolios[-1])
+                    money_account = (1 + rf.iloc[window + t - 1]) * money_account
+                    x = evolved_u.sum() + money_account
+
+                    # use the new wealth to re-balance the portfolio
+                    if self.__need_extra_data:
+                        temp_u = self.__strategy([df.iloc[:window, :]], x, extra_data.iloc[:window, :])
+                    else:
+                        temp_u = self.__strategy([df.iloc[:window, :]], x)
+                    money_account = x - temp_u.sum()  # reset/re-initiate money account
+                    u = np.zeros(df.shape[1])
+                    u[position_nan == False] = temp_u
+                    diff = u - evolved_u
+                    turnover += sum(abs(diff)) / x
+                    portfolios.append(u)
+
+                pi_models = {'default': {'buy': 1 + c * (
+                        diff[diff >= 0] / ((volume.iloc[window - 1] * price_df.iloc[window - 1]).values)) ** 0.6,
+                                         'sell': 1 - c * (abs(diff[diff < 0]) / (
+                                             (volume.iloc[window - 1] * price_df.iloc[window - 1]).values)) ** 0.6}}
+                pi_buy, pi_sell = pi_models[price_impact_model]['buy'], pi_models[price_impact_model]['sell']
+
+                sell = ((abs(diff[diff < 0]) * (1 - ptc_sell)) * pi_sell).sum()
+                buy = ((diff[diff >= 0] * (1 + ptc_buy)) * pi_buy).sum()
+                fixed = len(diff[diff != 0]) * (ftc)
+                money_account = money_account + sell - buy - fixed
+
+                # money_account undergoes transformation of interests in next period, to be calculated in t+1
+
+        elif not price_impact:
+            if last_portfolio.sum() == 0:  # boundary condition at the first portfolio
+                money_account = initial_wealth
+            else:
+                money_account = 0
+            for t in range(interval):
+                if t == 0:  # at the start of each interval
+                    x = initial_wealth
+                    if self.__need_extra_data:
+                        temp_u = self.__strategy([df.iloc[:window, :]], x, extra_data.iloc[:window, :])
+                    else:
+                        temp_u = self.__strategy([df.iloc[:window, :]], x)
+                    money_account = money_account + x - temp_u.sum()  # reset/re-initiate money account
+                    u = np.zeros(df.shape[1])
+                    u[position_nan == False] = temp_u
+                    diff = u - last_portfolio
+                    turnover += sum(abs(diff)) / x
+                    portfolios.append(u)
+                else:
+                    # first calculate the new current wealth x
+                    evolved_u = (1 + normal_return_df.iloc[window + t - 1, :]).mul(portfolios[-1])
+                    money_account = (1 + rf.iloc[window + t - 1]) * money_account
+                    x = evolved_u.sum() + money_account
+
+                    # use the new wealth to re-balance the portfolio
+                    if self.__need_extra_data:
+                        temp_u = self.__strategy([df.iloc[:window, :]], x, extra_data.iloc[:window, :])
+                    else:
+                        temp_u = self.__strategy([df.iloc[:window, :]], x)
+                    money_account = x - temp_u.sum()  # reset/re-initiate money account
+                    u = np.zeros(df.shape[1])
+                    u[position_nan == False] = temp_u
+                    diff = u - evolved_u
+                    turnover += sum(abs(diff)) / x
+                    portfolios.append(u)
+
+                sell = ((abs(diff[diff < 0]) * (1 - ptc_sell))).sum()
+                buy = ((diff[diff >= 0] * (1 + ptc_buy))).sum()
+                fixed = len(diff[diff != 0]) * (ftc)
+                money_account = money_account + sell - buy - fixed
+
+        # at the last period of this interval, the portfolio will undergo market movements
+        evolved_u = (1 + normal_return_df.iloc[window + interval - 1, :]).mul(portfolios[-1])
+        money_account = (1 + rf.iloc[window + interval - 1]) * money_account
+        x = evolved_u.sum() + money_account  # this will be the initial_wealth of next interval
+
+        # calculate the returns and net returns here so we won't repeat the calculation again
+        _rf = (1 + rf.iloc[window:window + interval]).cumprod().iloc[-1] - 1
+        _return = (x - initial_wealth) / initial_wealth
+        _net_return = _return - _rf
+
+        return (portfolios, x, evolved_u, _return, _net_return, turnover)
+        # return all portfolios including the last-period EVOLVED portfolio,
+        # and final wealth of current interval and returns and net returns
+
+    # rebalance function need to be changed slightly to fit the multi-period strategies
+    def __rebalance(self, ex_return_df, normal_return_df, price_df, rf, window, interval, ptc_buy=0,
+                    ptc_sell=0, ftc=0, volume=pd.DataFrame(), c=1, initial_wealth=1E6, extra_data=None,
+                    price_impact=False, price_impact_model='default'):
+        T, N=ex_return_df.shape[0], ex_return_df.shape[1]
+        historical_portfolios = []
+        map = {'price': price_df, 'ex_return': ex_return_df, 'return': normal_return_df}
+        if self.__need_extra_data:
+            last_portfolio=np.zeros(N)
+            x=initial_wealth
+            self.__total_turnover=0
+            self.__net_returns=[]
+            self.__net_excess_returns=[]
+            for index in range(0, T - window + 1, interval):
+                if price_impact:
+                    portfolios, x, last_portfolio, _return, _net_return, turnover=self.__each_interval(
+                        ex_return_df.iloc[index:index + window], normal_return_df.iloc[index:index + window],
+                        price_df.iloc[index:index + window], rf.iloc[index:index + window], window, interval,
+                        last_portfolio, ptc_buy, ptc_sell, ftc, volume.iloc[index:index + window], c, x,
+                        extra_data.iloc[index:index + window], price_impact, price_impact_model)
+                else:
+                    portfolios, x, last_portfolio, _return, _net_return, turnover = self.__each_interval(
+                        ex_return_df.iloc[index:index + window], normal_return_df.iloc[index:index + window],
+                        price_df.iloc[index:index + window], rf.iloc[index:index + window], window, interval,
+                        last_portfolio, ptc_buy, ptc_sell, ftc, volume, c, x,
+                        extra_data.iloc[index:index + window], price_impact, price_impact_model)
+                self.__total_turnover+=turnover
+                self.__net_returns.append(_return)
+                self.__net_excess_returns.append(_net_return)
+                historical_portfolios.extend(portfolios)
+        else:
+            last_portfolio = np.zeros(N)
+            x = initial_wealth
+            self.__total_turnover = 0
+            self.__net_returns = []
+            self.__net_excess_returns = []
+            for index in range(0, T - window + 1, interval):
+                if price_impact:
+                    portfolios, x, last_portfolio, _return, _net_return, turnover = self.__each_interval(
+                        ex_return_df.iloc[index:index + window], normal_return_df.iloc[index:index + window],
+                        price_df.iloc[index:index + window], rf.iloc[index:index + window], window, interval,
+                        last_portfolio, ptc_buy, ptc_sell, ftc, volume.iloc[index:index + window], c, x,
+                        extra_data, price_impact, price_impact_model)
+                else:
+                    portfolios, x, last_portfolio, _return, _net_return, turnover = self.__each_interval(
+                        ex_return_df.iloc[index:index + window], normal_return_df.iloc[index:index + window],
+                        price_df.iloc[index:index + window], rf.iloc[index:index + window], window, interval,
+                        last_portfolio, ptc_buy, ptc_sell, ftc, volume, c, x,
+                        extra_data, price_impact, price_impact_model)
+                self.__total_turnover += turnover
+                self.__net_returns.append(_return)
+                self.__net_excess_returns.append(_net_return)
+                historical_portfolios.extend(portfolios)
+        return historical_portfolios
+
+    def __test_price_impact(self, data, freq_data, data_type, rf, interval, window, freq_strategy, ptc_buy,
+                            ptc_sell, ftc, volume, c, initial_wealth, extra_data, price_impact_model='default'):
+        # prepare data
+        normal_return_df, excess_return_df, volume, risk_free_rate, price_df = self.__prepare_data(data, freq_data,
+                                                                                                   data_type, rf,
+                                                                                                   interval, window,
+                                                                                                   freq_strategy,
+                                                                                                   volume,
+                                                                                                   price_impact=True)
+
+        T = excess_return_df.shape[0]  # length of dataset
+        N = excess_return_df.shape[1]  # number of assets
+        if window < N:
+            warnings.warn('window length smaller than the number of assets, may not get feasible portfolios')
+        if window >= T - 2:  # 2 here can change later
+            raise Exception(
+                'Too few samples to test on will result in poor performance : reduce window or decrease interval or '
+                'increase length of data')
+
+        # apply __rebalance to get the portfolios
+        volume = volume.rolling(window).mean().dropna(axis=0, how='all').loc[normal_return_df.index]
+        portfolios = self.__rebalance(excess_return_df, normal_return_df, price_df, rf, window, interval, ptc_buy, ptc_sell,
+                                      ftc, volume, c, initial_wealth, extra_data, price_impact=True, price_impact_model= price_impact_model)
+
+        # Not valid anymore because portfolios are measured in money value instead of weights
+        # try:
+        #     assert sum(portfolios[0]) <= 1 + 0.000001
+        # except:
+        #     raise Exception(
+        #         'Please make sure your strategy builds a portfolios whose sum of weights does not exceed 1!')
+
+        # All historical portfolios are saved, including the re-balancing ones in the middle.
+        # portfolios = pd.DataFrame(portfolios).iloc[::interval]
+
+        # save the portfolios for calling
+        self.__last_test_portfolios = portfolios.set_axis(excess_return_df.columns.values, axis='columns').set_axis(
+            excess_return_df.iloc[window - 1:].index.values, axis='index')
+        self.__average_turnover=self.__total_turnover/(len(portfolios))
+        self.__sharpe = np.mean(self.__net_excess_returns) / np.std(self.__net_excess_returns, ddof=1)
+
+    def __test_no_price_impact(self, data, freq_data, data_type, rf, interval, window, freq_strategy, ptc_buy,
+                               ptc_sell, ftc, initial_wealth, extra_data):
+        # prepare data
+        normal_return_df, excess_return_df, risk_free_rate, price_df = self.__prepare_data(data, freq_data,
+                                                                                           data_type, rf,
+                                                                                           interval, window,
+                                                                                           freq_strategy)
+
+        T = excess_return_df.shape[0]  # length of dataset
+        N = excess_return_df.shape[1]  # number of assets
+        if window < N:
+            warnings.warn('window length smaller than the number of assets, may not get feasible portfolios')
+        if window >= T - 2:  # 3 here can change later
+            raise Exception(
+                'Too few samples to test on will result in poor performance : reduce window or decrease interval or '
+                'increase length of data')
+
+        # apply rolling windows with __rebalance
+        portfolios = self.__rebalance(excess_return_df, normal_return_df, price_df, rf, window, interval, ptc_buy, ptc_sell,
+                                      ftc, initial_wealth=initial_wealth, extra_data=extra_data, price_impact=False)
+
+        self.__last_test_portfolios = portfolios.set_axis(excess_return_df.columns.values, axis='columns').set_axis(
+            excess_return_df.iloc[window - 1:].index.values, axis='index')
+        self.__average_turnover = self.__total_turnover / (len(portfolios))
+        self.__sharpe = np.mean(self.__net_excess_returns) / np.std(self.__net_excess_returns, ddof=1)
+
+
+
 # built-in strategies in the library
 
+# single-period strategies
 def __naive_alloc(list_df):
     df = list_df[0]
     n = df.shape[1]
@@ -884,6 +1189,22 @@ def __Bayes_Stein_2(list_df):  # ex_return
 
 
 Bayes_Stein_shrink = backtest_model(__Bayes_Stein, ['ex_return'], name='Bayes_Stein_shrinkage portfolio')
+
+# multi-periods strategies
+def __global_min_variance(list_df, x):
+    df = list_df[0]
+    n = df.shape[1]
+    cov = df.cov()
+    in_cov = np.linalg.inv(cov)
+    beta = df.mean()
+
+    u = np.dot(np.dot(in_cov, np.ones(n)) / np.dot(np.ones(n), np.dot(in_cov, np.ones(n))) - \
+               np.dot(in_cov, beta - np.dot(np.ones(n), np.dot(np.dot(np.ones(n), in_cov), beta) \
+                                            / np.dot(np.ones(n), np.dot(in_cov, np.ones(n))))), x)
+
+    return u
+
+multi_periods_global_min_variance = mperiods_backtest_model(__global_min_variance, ['ex_return'], name='multi-periods global minimum variance portfolio')
 
 # A small function that fetch the data included in the library package
 from importlib import resources
