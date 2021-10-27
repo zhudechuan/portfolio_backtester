@@ -385,39 +385,58 @@ class backtest_model:
         # pre_balance portfolios that serves as nominators
         pre_balance_portfolios_2 = (1 + normal_return_df.iloc[1:]).mul(portfolios.iloc[1:-1].values)
 
-        if ftc != 0:
-            # factor in the initial_wealth for all 'diff','portfolios'
-            portfolios *= initial_wealth
-            pre_balance_portfolios *= initial_wealth
-            pre_balance_portfolios_2 *= initial_wealth
-            diff *= initial_wealth
+        # if ftc != 0:
+        #     # factor in the initial_wealth for all 'diff','portfolios'
+        #     portfolios *= initial_wealth
+        #     pre_balance_portfolios *= initial_wealth
+        #     pre_balance_portfolios_2 *= initial_wealth
+        #     diff *= initial_wealth
+        #
+        #     # transaction cost impacts
+        #     sell = (abs(diff[diff < 0]).mul(1 - ptc_sell)).sum(axis=1)
+        #     buy = (diff[diff >= 0].mul(1 + ptc_buy)).sum(axis=1)
+        #     fixed = diff[diff != 0].count(axis=1).mul(ftc)
+        #     # evolution of money account
+        #     pre_balance_money = np.zeros(risk_free_rate.shape[0])
+        #     after_balance_money = pre_balance_money + sell - buy - fixed
+        #     pre_balance_money_2 = after_balance_money[:-1].mul((1 + risk_free_rate.iloc[1:]).values)
+        #
+        #     self.__net_returns = (pre_balance_portfolios_2.sum(axis=1).add(pre_balance_money_2.values)).div(
+        #         pre_balance_portfolios.sum(axis=1).add(pre_balance_money).iloc[:-1].values) - 1
+        #
+        #     self.__net_excess_returns = self.__net_returns.sub(risk_free_rate.iloc[1:].values)
+        # else:
+        #     # transaction cost impacts
+        #     sell = (abs(diff[diff < 0]).mul(1 - ptc_sell)).sum(axis=1)
+        #     buy = (diff[diff >= 0].mul(1 + ptc_buy)).sum(axis=1)
+        #     # evolution of money account
+        #     pre_balance_money = np.zeros(risk_free_rate.shape[0])
+        #     after_balance_money = pre_balance_money + sell - buy
+        #     pre_balance_money_2 = after_balance_money[:-1].mul((1 + risk_free_rate.iloc[1:]).values)
+        #
+        #     self.__net_returns = (pre_balance_portfolios_2.sum(axis=1).add(pre_balance_money_2.values)).div(
+        #         pre_balance_portfolios.sum(axis=1).add(pre_balance_money).iloc[:-1].values) - 1
+        #
+        #     self.__net_excess_returns = self.__net_returns.sub(risk_free_rate.iloc[1:].values)
 
-            # transaction cost impacts
-            sell = (abs(diff[diff < 0]).mul(1 - ptc_sell)).sum(axis=1)
-            buy = (diff[diff >= 0].mul(1 + ptc_buy)).sum(axis=1)
-            fixed = diff[diff != 0].count(axis=1).mul(ftc)
-            # evolution of money account
-            pre_balance_money = np.zeros(risk_free_rate.shape[0])
-            after_balance_money = pre_balance_money + sell - buy - fixed
-            pre_balance_money_2 = after_balance_money[:-1].mul((1 + risk_free_rate.iloc[1:]).values)
+        portfolios *= initial_wealth
+        pre_balance_portfolios *= initial_wealth
+        pre_balance_portfolios_2 *= initial_wealth
+        diff *= initial_wealth
 
-            self.__net_returns = (pre_balance_portfolios_2.sum(axis=1).add(pre_balance_money_2.values)).div(
-                pre_balance_portfolios.sum(axis=1).add(pre_balance_money).iloc[:-1].values) - 1
+        # transaction cost impacts
+        sell = (abs(diff[diff < 0]).mul(1 - ptc_sell)).sum(axis=1)
+        buy = (diff[diff >= 0].mul(1 + ptc_buy)).sum(axis=1)
+        fixed = diff[diff != 0].count(axis=1).mul(ftc)
+        # evolution of money account
+        pre_balance_money = np.zeros(risk_free_rate.shape[0])
+        after_balance_money = pre_balance_money + sell - buy - fixed
+        pre_balance_money_2 = after_balance_money[:-1].mul((1 + risk_free_rate.iloc[1:]).values)
 
-            self.__net_excess_returns = self.__net_returns.sub(risk_free_rate.iloc[1:].values)
-        else:
-            # transaction cost impacts
-            sell = (abs(diff[diff < 0]).mul(1 - ptc_sell)).sum(axis=1)
-            buy = (diff[diff >= 0].mul(1 + ptc_buy)).sum(axis=1)
-            # evolution of money account
-            pre_balance_money = np.zeros(risk_free_rate.shape[0])
-            after_balance_money = pre_balance_money + sell - buy
-            pre_balance_money_2 = after_balance_money[:-1].mul((1 + risk_free_rate.iloc[1:]).values)
+        self.__net_returns = (pre_balance_portfolios_2.sum(axis=1).add(pre_balance_money_2.values)).div(
+            pre_balance_portfolios.sum(axis=1).add(pre_balance_money).iloc[:-1].values) - 1
 
-            self.__net_returns = (pre_balance_portfolios_2.sum(axis=1).add(pre_balance_money_2.values)).div(
-                pre_balance_portfolios.sum(axis=1).add(pre_balance_money).iloc[:-1].values) - 1
-
-            self.__net_excess_returns = self.__net_returns.sub(risk_free_rate.iloc[1:].values)
+        self.__net_excess_returns = self.__net_returns.sub(risk_free_rate.iloc[1:].values)
 
 
         self.__sharpe = np.mean(self.__net_excess_returns) / np.std(self.__net_excess_returns, ddof=1)
@@ -1231,28 +1250,28 @@ def fetch_data(file_name):
 
 
 if __name__ == '__main__':
-    data=fetch_data('SPSectors.csv')
+    # data=fetch_data('SPSectors.csv')
     #naive_alloc.backtest(data.iloc[:,1:],'M',window=120,interval=1, rf=data.iloc[:,0],data_type='ex_return',freq_strategy='M',ftc=0)
-    Bayes_Stein_shrink.backtest(data.iloc[:,1:],'M',window=120,rf=data.iloc[:,0],data_type='ex_return',freq_strategy='M')
+    # Bayes_Stein_shrink.backtest(data.iloc[:,1:],'M',window=120,rf=data.iloc[:,0],data_type='ex_return',freq_strategy='M')
     # basic_mean_variance.backtest(data.iloc[:,1:],'M',window=120,rf=data.iloc[:,0],data_type='ex_return',freq_strategy='M')
     # min_var.backtest(data.iloc[:,1:],'M',window=120,rf=data.iloc[:,0],data_type='ex_return',freq_strategy='M')
 
-    # data=fetch_data('sp_500_prices_v2.csv')
-    # data = data.iloc[:, :12]
-    # volume=fetch_data('sp_500_volumes_v2.csv')
-    # volume = volume.loc[:, data.columns]
-    #
+    data=fetch_data('sp_500_prices_v2.csv')
+    data = data.iloc[:, :12]
+    volume=fetch_data('sp_500_volumes_v2.csv')
+    volume = volume.loc[:, data.columns]
+
     # naive_alloc.backtest(data, 'D', window=10, interval=2, rf=pd.Series([0.01] * data.shape[0], index=data.index),
     #                     data_type='price', freq_strategy='W',
     #                     price_impact=False,
     #                     ptc_buy=0.1, ptc_sell=0.2, ftc=1)
-
+    #
     # naive_alloc.backtest(data, 'D', volume, window=3, interval=2, rf=pd.Series([0.01] * data.shape[0], index=data.index),
-    #                      data_type='price', freq_strategy='M',
+    #                      data_type='price', freq_strategy='W',
     #                      price_impact=True,
     #                      ptc_buy=0.1, ptc_sell=0.2, ftc=1, c=pd.Series([1] * data.shape[1]))
 
-    #
+
 
     # min_var.backtest(data, 'D', volume, window=120, rf=pd.Series([0.01] * data.shape[0], index=data.index),
     #                     data_type='price', freq_strategy='D',
@@ -1291,4 +1310,6 @@ if __name__ == '__main__':
     # return_df.dropna(axis=0, how='all', inplace=True)
     # iv = backtest_model(lambda x: wrapper(__iv_alloc, x), ['return'])
     # iv.backtest(return_df, freq_data='D', data_type='return', rf=0)
+
+
     pass
