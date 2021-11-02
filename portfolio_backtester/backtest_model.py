@@ -1282,8 +1282,8 @@ def fetch_data(file_name):
 
 
 if __name__ == '__main__':
-    data=fetch_data('SPSectors.csv')
-    no_short_sell.backtest(data.iloc[:,1:],'M',window=120,interval=1, rf=data.iloc[:,0],data_type='ex_return',freq_strategy='M')
+    # data=fetch_data('SPSectors.csv')
+    # no_short_sell.backtest(data.iloc[:,1:],'M',window=120,interval=1, rf=data.iloc[:,0],data_type='ex_return',freq_strategy='M')
     #naive_alloc.backtest(data.iloc[:,1:],'M',window=120,interval=1, rf=data.iloc[:,0],data_type='ex_return',freq_strategy='M',ftc=0)
     # Bayes_Stein_shrink.backtest(data.iloc[:,1:],'M',window=120,rf=data.iloc[:,0],data_type='ex_return',freq_strategy='M')
     # basic_mean_variance.backtest(data.iloc[:,1:],'M',window=120,rf=data.iloc[:,0],data_type='ex_return',freq_strategy='M')
@@ -1346,27 +1346,26 @@ if __name__ == '__main__':
 
     # Tbills = pd.read_csv('../library paper data/T-bills 20020102-20211020.csv', index_col='DATE', parse_dates=True)
     Tbills=fetch_data('T-bills 20020102-20211020.csv')
-    weekly_rf = Tbills['4 weeks'] / 52
-    weekly_rf = weekly_rf.resample('D').ffill().fillna(method='ffill')
-    file = 'SP100 20060901-20211015.csv'
-    # file='SP500 20060901-20211015.csv'
+    # weekly_rf = Tbills['4 weeks'] / 52
+    # weekly_rf = weekly_rf.resample('D').ffill().fillna(method='ffill')
+    # file = 'SP100 20060901-20211015.csv'
+    file='SP500 20060901-20211015.csv'
     # stoptime='2015-06-01'
     stoptime='2021-06-20'
     print(file, '\n------------------------------')
     data = fetch_data(file)
-    data = data.loc[:stoptime]
-    data = data.resample('W').ffill().fillna(method='ffill')
-    RF = weekly_rf.loc[data.index] / 100
+    # data = data.loc[:stoptime]
+    # data = data.resample('W').ffill().fillna(method='ffill')
+    # RF = weekly_rf.loc[data.index] / 100
 
 
     # volume = pd.read_csv('../library paper data/SP100 20060901-20211015 volume.csv', index_col='Date', parse_dates=True)
-    volume=fetch_data('SP100 20060901-20211015 volume.csv')
-    # volume=fetch_data('SP500 20060901-20211015 volume.csv')
-    # volume = volume.fillna(volume.mean()).resample('W').mean().loc[data.index]
-    volume=volume.fillna(method='ffill').resample('W').mean().loc[data.index]
-    # naive_alloc_pi=backtest_model(__naive_alloc, ['ex_return'])
+    # volume=fetch_data('SP100 20060901-20211015 volume.csv')
+    volume=fetch_data('SP500 20060901-20211015 volume.csv')
+    # volume=volume.fillna(method='ffill').resample('W').mean().loc[data.index]
+     # naive_alloc_pi=backtest_model(__naive_alloc, ['ex_return'])
     # naive_alloc_pi.backtest(data, freq_data='W', freq_strategy='W', volume=volume, window=200, data_type='price', rf=RF,
     #                price_impact=True, c=0.1)
     # naive_alloc.backtest(data, freq_data='W', freq_strategy='W', window=200, data_type='price', rf=RF)
-    no_short_sell.backtest(data, freq_data='W', freq_strategy='W', window=200, data_type='price', rf=RF)
+    # no_short_sell.backtest(data, freq_data='W', freq_strategy='W', window=200, data_type='price', rf=RF)
     pass
