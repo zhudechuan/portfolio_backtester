@@ -215,7 +215,7 @@ class backtest_model:
         return historical_portfolios
 
     def __test_price_impact(self, data, freq_data, data_type, rf, interval, window, freq_strategy, ptc_buy,
-                            ptc_sell, ftc, volume, c, initial_wealth, extra_data, price_impact_model='default'):
+                            ptc_sell, ftc, volume, c, initial_wealth, extra_data, price_impact_model='default',power=0.6):
         # prepare data
         normal_return_df, excess_return_df, volume, risk_free_rate, price_df = self.__prepare_data(data, freq_data,
                                                                                                    data_type, rf,
@@ -296,8 +296,8 @@ class backtest_model:
 
         # Money account value after each period, before rebalancing
 
-        pi_models = {'default': {'buy': 1 + c * (diff[diff > 0].div((volume * price_df).values)) ** 0.6,
-                                 'sell': 1 - c * (abs(diff[diff < 0]).div((volume * price_df).values)) ** 0.6}}
+        pi_models = {'default': {'buy': 1 + c * (diff[diff > 0].div((volume * price_df).values)) ** power,
+                                 'sell': 1 - c * (abs(diff[diff < 0]).div((volume * price_df).values)) ** power}}
         pi_buy, pi_sell = pi_models[price_impact_model]['buy'], pi_models[price_impact_model]['sell']
 
         # sell = ((abs(diff[diff < 0]).mul(1 - ptc_sell)) * (
@@ -445,7 +445,7 @@ class backtest_model:
                  interval=1, window=60,
                  freq_strategy='D',
                  price_impact=False, ptc_buy=0, ptc_sell=0, ftc=0, c=1, initial_wealth=1E6,
-                 extra_data=pd.DataFrame(), price_impact_model='default'):
+                 extra_data=pd.DataFrame(), price_impact_model='default',power=0.6):
         """
         Start the backtesting process with the built model. The function itself will not return anything. To get the results,
         please call respective functions.
@@ -628,7 +628,7 @@ class backtest_model:
                 self.__last_test_frequency = f'{interval} {frequency_map[freq_strategy]}'
                 self.__test_price_impact(data, freq_data, data_type, rf, interval, window, freq_strategy,
                                          ptc_buy, ptc_sell, ftc, volume, c, initial_wealth, extra_data,
-                                         price_impact_model)
+                                         price_impact_model,power)
 
         return
 
