@@ -29,6 +29,8 @@ e.g. using *future information*to build portfolio in the current period. By usin
 standard, the library enforces a fair game for different strategies by competing on a same level
 of battleground.
 
+For the full documentation please refer to [full manual](https://portfolio-backtester.readthedocs.io/en/latest/index.html)
+
 ## Requirements
 The following libraries are required for the use of ***portfolio_backtester***
 - [numpy](https://numpy.org/)
