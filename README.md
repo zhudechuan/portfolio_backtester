@@ -6,8 +6,7 @@ Given a portfolio construction strategy (a function that takes in stock-related 
 it pre-built-in or user-defined, and the data that the user wish the strategy to be tested on, the library can calculate several evaluation metrics of the portfolio, including
 net returns, sharpe ratio, certainty equivalent returns, turnover, etc.
 
-- ***portfolio_backtester* is fast and efficient, compatible with most `dataframe` and `numpy` objects
-and functions**
+- ***portfolio_backtester* is fast and efficient, compatible with most `dataframe` and `numpy` objects and functions**
 
 The library is built on `numpy` and `pandas`, and mostly utilizes matrix operations to handle heavy calculations
 to make the library *light, fast* and *efficient*.
@@ -308,8 +307,6 @@ Date
 Length: 143, dtype: float64
 ```
 ## Roadmap
-
-- Add in documents for the description of each data file
 
 In the future:
 - More performance metrics 

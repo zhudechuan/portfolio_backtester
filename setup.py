@@ -13,21 +13,18 @@ with open(path.join(HERE, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='portfolio_backtester',
-    version='0.1.0',
+    version='0.1.1',
     packages=['tests', 'portfolio_backtester'],
     keywords=['portfolio', 'backtest'],
     url='',
     license='MIT',
     author='zhudechuan',
-    author_email='dz2414@columbia.edu',
+    author_email='zhudechuan.zzjj@hotmail.com',
     description='universal portfolio backtester',
     long_description=long_description,
     long_description_content_type="text/markdown",
     classifiers=[
         'Programming Language :: Python',
-        'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
-        "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Operating System :: OS Independent"
