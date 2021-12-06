@@ -15,6 +15,27 @@ class backtest_model:
     net_returns, sharpe ratio, certainty equivalent returns, turnover, etc.
     Various inputs can be modified to suit the needs of strategy and backtesting scenarios, such as price-impact models,
     transaction costs, etc.
+
+    Initiate the model with the strategy function, and clarify involved data types needed, whose sequence MUST be consistent
+    with that of the list of dataframes used inside strategy function
+
+    :param strategy: user-defined function that serves as portfolio construction strategy
+    :type strategy: function
+
+    :param involved_data_type: a list of strings that indicate the type of data {'price','return','ex_return'} used in the strategy, the order of the strings will be the order that data are passed to the strategy
+    :type involved_data_type: list
+
+    :param need_extra_data: indicate whether the strategy need extra_data (data other than {'price','return','ex_return'}) to function. Note: 1. the datetime index of extra_data must match that of the provided data. 2. change-of-frequency functionality will be suspended if extra data is needed
+    :type need_extra_data: bool
+
+    :param trace_back: indicate whether the strategy need to trace back to past portfolios to function. Note: please handle the boundary situation where past portfolios is empty in the strategy function
+    :type trace_back: bool
+
+    :param name: name of the strategy to be tested
+    :type name: str
+
+    :param missing_val : indicate whether user strategy function can handle missing values in the data on its own. True means the function can deal with missing values. False means it cannot
+    :type missing_val: bool
     """
 
     def __init__(self, strategy, involved_data_type, need_extra_data=False, trace_back=False, name='Unnamed', missing_val=False):
