@@ -6,6 +6,7 @@ import warnings
 from sklearn.linear_model import LinearRegression
 import scipy.cluster.hierarchy as sch
 import datetime
+import random
 
 
 class backtest_model:
@@ -521,6 +522,8 @@ class backtest_model:
 
         :return: None
         """
+        random.seed(1)
+
         if price_impact_model not in {'default'}:
             raise Exception('Unknown type of "price_impact_model"!')
 
